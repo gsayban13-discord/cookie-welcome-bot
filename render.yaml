@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: cookie-welcome-bot
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
