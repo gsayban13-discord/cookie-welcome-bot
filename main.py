@@ -6,6 +6,10 @@ import os
 import aiosqlite
 import random
 from welcome_card import create_welcome_card
+import asyncio
+import requests
+from bs4 import BeautifulSoup
+
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
@@ -42,11 +46,64 @@ async def setup_db():
                 auto_role INTEGER,
                 background TEXT,
                 log_channel INTEGER,
-                logger_enabled INTEGER DEFAULT 0
+                logger_enabled INTEGER DEFAULT 0,
+                tiktok_username TEXT,
+                tiktok_channel INTEGER,
+                tiktok_live INTEGER DEFAULT 0
             )
             """
         )
         await db.commit()
+
+@bot.event
+async def check_tiktok_live():
+    await bot.wait_until_ready()
+
+    while not bot.is_closed():
+        async with aiosqlite.connect(DB) as db:
+            cursor = await db.execute(
+                "SELECT guild_id, tiktok_username, tiktok_channel, tiktok_live FROM settings WHERE tiktok_username IS NOT NULL"
+            )
+            rows = await cursor.fetchall()
+
+        for guild_id, username, channel_id, was_live in rows:
+            try:
+                url = f"https://www.tiktok.com/@{username}/live"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                response = requests.get(url, headers=headers)
+
+                is_live = "LIVE" in response.text
+
+                if is_live and not was_live:
+                    guild = bot.get_guild(guild_id)
+                    channel = guild.get_channel(channel_id)
+
+                    if channel:
+                        await channel.send(
+                            f"🔴 **{username} is LIVE on TikTok!**\nhttps://www.tiktok.com/@{username}/live"
+                        )
+
+                    async with aiosqlite.connect(DB) as db:
+                        await db.execute(
+                            "UPDATE settings SET tiktok_live=1 WHERE guild_id=?",
+                            (guild_id,)
+                        )
+                        await db.commit()
+
+                elif not is_live and was_live:
+                    async with aiosqlite.connect(DB) as db:
+                        await db.execute(
+                            "UPDATE settings SET tiktok_live=0 WHERE guild_id=?",
+                            (guild_id,)
+                        )
+                        await db.commit()
+
+            except Exception as e:
+                print("TikTok check error:", e)
+
+        await asyncio.sleep(180)  # 3 minutes
+
+
 
 # ---------------- BOT READY ----------------
 
@@ -55,6 +112,8 @@ async def on_ready():
     await setup_db()
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     print(f"Logged in as {bot.user}")
+    bot.loop.create_task(check_tiktok_live())
+
 
 # ---------------- MEMBER JOIN EVENT ----------------
 
@@ -286,5 +345,40 @@ async def setrole(interaction: discord.Interaction, role: discord.Role):
         await db.commit()
 
     await interaction.response.send_message("✅ Role set!", ephemeral=True)
+
+
+# ---------------- SET TIKTOK USERNAME ----------------
+@tree.command(name="settiktok", description="Set TikTok username",
+              guild=discord.Object(id=1459935661116100730))
+async def settiktok(interaction: discord.Interaction, username: str):
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("""
+        INSERT INTO settings (guild_id, tiktok_username)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET tiktok_username=excluded.tiktok_username
+        """, (interaction.guild.id, username))
+        await db.commit()
+
+    await interaction.response.send_message("✅ TikTok username saved!", ephemeral=True)
+
+
+# ---------------- SET TIKTOK ANNOUNCEMENT CHANNEL ----------------
+@tree.command(name="settiktokchannel", description="Set TikTok announcement channel",
+              guild=discord.Object(id=1459935661116100730))
+async def settiktokchannel(interaction: discord.Interaction, channel: discord.TextChannel):
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("""
+        INSERT INTO settings (guild_id, tiktok_channel)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET tiktok_channel=excluded.tiktok_channel
+        """, (interaction.guild.id, channel.id))
+        await db.commit()
+
+    await interaction.response.send_message("✅ TikTok channel set!", ephemeral=True)
+
 
 bot.run(TOKEN)
