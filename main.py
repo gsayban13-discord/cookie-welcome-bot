@@ -232,12 +232,14 @@ async def on_message_edit(before, after):
 @bot.event
 async def on_voice_state_update(member, before, after):
 
+    # Only trigger when user joins voice (not switching channels)
     if before.channel is None and after.channel is not None:
 
         async with aiosqlite.connect(DB) as db:
             cursor = await db.execute(
-                """SELECT voice_vip_user, voice_vip_channel,
-                   voice_vip_enabled, voice_vip_message
+                """SELECT voice_vip_user,
+                          voice_vip_enabled,
+                          voice_vip_message
                    FROM settings WHERE guild_id=?""",
                 (member.guild.id,)
             )
@@ -246,22 +248,24 @@ async def on_voice_state_update(member, before, after):
         if not row:
             return
 
-        vip_user, channel_id, enabled, message = row
+        vip_user, enabled, message = row
 
+        # Feature disabled
         if not enabled or not vip_user:
             return
 
+        # Not the VIP user
         if member.id != vip_user:
             return
 
-        channel = member.guild.get_channel(channel_id)
+        # Send message directly to voice channel's side chat
+        voice_channel = after.channel
 
-        if channel:
-            msg = message or "🎤 {user} joined voice chat!"
-            msg = msg.replace("{user}", member.mention)
-            msg = msg.replace("{channel}", after.channel.name)
+        msg = message or "🎤 {user} joined voice chat!"
+        msg = msg.replace("{user}", member.mention)
+        msg = msg.replace("{channel}", voice_channel.name)
 
-            await channel.send(msg)
+        await voice_channel.send(msg)
 
 
 # ---------------- SET VIP VOICE USER ----------------
