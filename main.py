@@ -285,23 +285,6 @@ async def setvoicevip(interaction: discord.Interaction, user: discord.Member):
     await interaction.response.send_message("✅ VIP user set!", ephemeral=True)
 
 
-# ---------------- SET VIP VOICE ANNOUNCEMENT CHANNEL ----------------
-@tree.command(name="setvoicechannel", description="Set VIP voice announcement channel",
-              guild=discord.Object(id=GUILD_ID))
-async def setvoicechannel(interaction: discord.Interaction, channel: discord.TextChannel):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        INSERT INTO settings (guild_id, voice_vip_channel)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET voice_vip_channel=excluded.voice_vip_channel
-        """, (interaction.guild.id, channel.id))
-        await db.commit()
-
-    await interaction.response.send_message("✅ Voice announcement channel set!", ephemeral=True)
-
-
 # ---------------- SET VIP VOICE WELCOME MESSAGE ----------------
 @tree.command(name="setvoicemsg", description="Set VIP voice welcome message",
               guild=discord.Object(id=GUILD_ID))
