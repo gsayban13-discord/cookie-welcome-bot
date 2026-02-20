@@ -49,7 +49,11 @@ async def setup_db():
                 logger_enabled INTEGER DEFAULT 0,
                 tiktok_username TEXT,
                 tiktok_channel INTEGER,
-                tiktok_live INTEGER DEFAULT 0
+                tiktok_live INTEGER DEFAULT 0,
+                voice_vip_user INTEGER,
+                voice_vip_channel INTEGER,
+                voice_vip_enabled INTEGER DEFAULT 0,
+                voice_vip_message TEXT
             )
             """
         )
@@ -223,6 +227,120 @@ async def on_message_edit(before, after):
 
     await log_channel.send(embed=embed)
 
+
+# ---------------- VOICE STATE UPDATE EVENT ----------------
+@bot.event
+async def on_voice_state_update(member, before, after):
+
+    if before.channel is None and after.channel is not None:
+
+        async with aiosqlite.connect(DB) as db:
+            cursor = await db.execute(
+                """SELECT voice_vip_user, voice_vip_channel,
+                   voice_vip_enabled, voice_vip_message
+                   FROM settings WHERE guild_id=?""",
+                (member.guild.id,)
+            )
+            row = await cursor.fetchone()
+
+        if not row:
+            return
+
+        vip_user, channel_id, enabled, message = row
+
+        if not enabled or not vip_user:
+            return
+
+        if member.id != vip_user:
+            return
+
+        channel = member.guild.get_channel(channel_id)
+
+        if channel:
+            msg = message or "🎤 {user} joined voice chat!"
+            msg = msg.replace("{user}", member.mention)
+            msg = msg.replace("{channel}", after.channel.name)
+
+            await channel.send(msg)
+
+
+# ---------------- SET VIP VOICE USER ----------------
+@tree.command(name="setvoicevip", description="Set VIP voice user",
+              guild=discord.Object(id=GUILD_ID))
+async def setvoicevip(interaction: discord.Interaction, user: discord.Member):
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("""
+        INSERT INTO settings (guild_id, voice_vip_user)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET voice_vip_user=excluded.voice_vip_user
+        """, (interaction.guild.id, user.id))
+        await db.commit()
+
+    await interaction.response.send_message("✅ VIP user set!", ephemeral=True)
+
+
+# ---------------- SET VIP VOICE ANNOUNCEMENT CHANNEL ----------------
+@tree.command(name="setvoicechannel", description="Set VIP voice announcement channel",
+              guild=discord.Object(id=GUILD_ID))
+async def setvoicechannel(interaction: discord.Interaction, channel: discord.TextChannel):
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("""
+        INSERT INTO settings (guild_id, voice_vip_channel)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET voice_vip_channel=excluded.voice_vip_channel
+        """, (interaction.guild.id, channel.id))
+        await db.commit()
+
+    await interaction.response.send_message("✅ Voice announcement channel set!", ephemeral=True)
+
+
+# ---------------- SET VIP VOICE WELCOME MESSAGE ----------------
+@tree.command(name="setvoicemsg", description="Set VIP voice welcome message",
+              guild=discord.Object(id=GUILD_ID))
+async def setvoicemsg(interaction: discord.Interaction, message: str):
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute("""
+        INSERT INTO settings (guild_id, voice_vip_message)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET voice_vip_message=excluded.voice_vip_message
+        """, (interaction.guild.id, message))
+        await db.commit()
+
+    await interaction.response.send_message("✅ Voice welcome message set!", ephemeral=True)
+
+
+# ---------------- TOGGLE VIP VOICE WELCOME ----------------
+@tree.command(name="togglevoicevip", description="Toggle VIP voice welcome",
+              guild=discord.Object(id=GUILD_ID))
+async def togglevoicevip(interaction: discord.Interaction):
+
+    async with aiosqlite.connect(DB) as db:
+        cursor = await db.execute(
+            "SELECT voice_vip_enabled FROM settings WHERE guild_id=?",
+            (interaction.guild.id,)
+        )
+        row = await cursor.fetchone()
+
+        new_value = 0 if row and row[0] else 1
+
+        await db.execute("""
+        INSERT INTO settings (guild_id, voice_vip_enabled)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id)
+        DO UPDATE SET voice_vip_enabled=excluded.voice_vip_enabled
+        """, (interaction.guild.id, new_value))
+        await db.commit()
+
+    status = "enabled" if new_value else "disabled"
+    await interaction.response.send_message(f"✅ VIP voice welcome {status}.", ephemeral=True)
+
+
 # ---------------- TOGGLE LOGGER ----------------
 @tree.command(name="togglelogger", description="Enable or disable message logger",
               guild=discord.Object(id=1459935661116100730))
@@ -379,6 +497,53 @@ async def settiktokchannel(interaction: discord.Interaction, channel: discord.Te
         await db.commit()
 
     await interaction.response.send_message("✅ TikTok channel set!", ephemeral=True)
+
+
+# ---------------- SHOW WELCOME PREVIEW ----------------
+@tree.command(name="showwelcomepreview", description="Preview welcome message",
+              guild=discord.Object(id=GUILD_ID))
+async def showwelcomepreview(interaction: discord.Interaction, user: discord.Member):
+
+    async with aiosqlite.connect(DB) as db:
+        cursor = await db.execute(
+            "SELECT background FROM settings WHERE guild_id=?",
+            (interaction.guild.id,)
+        )
+        row = await cursor.fetchone()
+
+    bg_path = row[0] if row else None
+
+    card = await create_welcome_card(user, bg_path)
+    message = random.choice(AI_MESSAGES).format(user=user.mention)
+
+    await interaction.response.send_message(
+        message,
+        file=discord.File(card, "welcome.png")
+    )
+
+
+# ---------------- SHOW LIVE ANNOUNCEMENT ----------------
+@tree.command(name="showliveannouncement", description="Preview TikTok live announcement",
+              guild=discord.Object(id=GUILD_ID))
+async def showliveannouncement(interaction: discord.Interaction):
+
+    async with aiosqlite.connect(DB) as db:
+        cursor = await db.execute(
+            "SELECT tiktok_username FROM settings WHERE guild_id=?",
+            (interaction.guild.id,)
+        )
+        row = await cursor.fetchone()
+
+    if not row or not row[0]:
+        await interaction.response.send_message("❌ TikTok username not set.", ephemeral=True)
+        return
+
+    username = row[0]
+
+    await interaction.response.send_message(
+        f"🔴 **{username} is LIVE on TikTok!**\nhttps://www.tiktok.com/@{username}/live"
+    )
+
 
 
 bot.run(TOKEN)
