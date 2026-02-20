@@ -81,7 +81,7 @@ async def check_tiktok_live():
                 if is_live and not was_live:
                     guild = bot.get_guild(guild_id)
                     channel = guild.get_channel(channel_id)
-
+ 
                     if channel:
                         await channel.send(
                             f"🔴 **{username} is LIVE on TikTok!**\nhttps://www.tiktok.com/@{username}/live"
@@ -491,6 +491,8 @@ async def settiktokchannel(interaction: discord.Interaction, channel: discord.Te
               guild=discord.Object(id=GUILD_ID))
 async def showwelcomepreview(interaction: discord.Interaction, user: discord.Member):
 
+    await interaction.response.defer()  # ⭐ IMPORTANT FIX
+
     async with aiosqlite.connect(DB) as db:
         cursor = await db.execute(
             "SELECT background FROM settings WHERE guild_id=?",
@@ -503,10 +505,11 @@ async def showwelcomepreview(interaction: discord.Interaction, user: discord.Mem
     card = await create_welcome_card(user, bg_path)
     message = random.choice(AI_MESSAGES).format(user=user.mention)
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         message,
         file=discord.File(card, "welcome.png")
     )
+
 
 
 # ---------------- SHOW LIVE ANNOUNCEMENT ----------------
