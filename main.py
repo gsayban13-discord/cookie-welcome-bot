@@ -17,6 +17,7 @@ TOKEN = os.getenv("TOKEN")
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
+intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
@@ -59,7 +60,6 @@ async def setup_db():
         )
         await db.commit()
 
-@bot.event
 async def check_tiktok_live():
     await bot.wait_until_ready()
 
