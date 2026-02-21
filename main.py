@@ -110,19 +110,43 @@ async def on_raw_message_delete(payload):
 
     # Try to get cached message (may or may not exist)
     if payload.cached_message:
-        msg = payload.cached_message
-        
-        if msg.author.bot:
-            return
-            
-        embed.add_field(name="Author", value=msg.author.mention)
+    msg = payload.cached_message
 
-        if msg.content:
-            embed.add_field(name="Content", value=msg.content[:1000], inline=False)
+    # Ignore bots
+    if msg.author.bot:
+        return
 
-    else:
-        embed.add_field(name="Author", value="Unknown (not cached)")
-        embed.add_field(name="Content", value="Message not in cache", inline=False)
+    embed.add_field(name="Author", value=msg.author.mention)
+
+    # TEXT CONTENT
+    if msg.content:
+        embed.add_field(
+            name="Content",
+            value=msg.content[:1000],
+            inline=False
+        )
+
+    # 📎 ATTACHMENTS
+    if msg.attachments:
+        files = []
+        image_url = None
+
+        for att in msg.attachments:
+            files.append(att.filename)
+
+            # If it's an image, show preview
+            if att.content_type and "image" in att.content_type:
+                image_url = att.url
+
+        embed.add_field(
+            name="Attachments",
+            value="\n".join(files),
+            inline=False
+        )
+
+        # Show first image preview
+        if image_url:
+            embed.set_image(url=image_url)
 
     await log_channel.send(embed=embed)
 
@@ -162,6 +186,25 @@ async def on_raw_message_edit(payload):
         embed.add_field(name="Before", value=before.content[:1000], inline=False)
         embed.add_field(name="After", value=after[:1000], inline=False)
 
+        if before.attachments:
+            files = []
+            image_url = None
+
+            for att in before.attachments:
+                files.append)f"[{att.filename}]({att.url})")
+
+                if att.content_type and "image" in att.content_type:
+                    image_url = att.url
+
+        embed.add_field(
+            name="Attachments",
+            value="\n".join(files),
+            inline=False
+        )
+
+        if image_url:
+            embed.set_image(url=image_url)
+            
         await log_channel.send(embed=embed)
 
 # ---------------- VOICE VIP ----------------
@@ -432,6 +475,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
