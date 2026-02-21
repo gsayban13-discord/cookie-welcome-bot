@@ -84,26 +84,75 @@ async def on_member_join(member):
 
 # ---------------- LOGGER ----------------
 @bot.event
-async def on_message_delete(message):
-    if message.author.bot or not message.guild:
+async def on_raw_message_delete(payload):
+
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
         return
 
-    settings = await get_settings(message.guild.id)
+    settings = await get_settings(guild.id)
+
     if not settings.get("logger_enabled"):
         return
 
-    log_channel = message.guild.get_channel(settings.get("log_channel"))
+    log_channel = guild.get_channel(settings.get("log_channel"))
     if not log_channel:
         return
 
-    embed = discord.Embed(title="🗑️ Message Deleted", color=discord.Color.red())
-    embed.add_field(name="Author", value=message.author.mention)
-    embed.add_field(name="Channel", value=message.channel.mention)
+    channel = guild.get_channel(payload.channel_id)
 
-    if message.content:
-        embed.add_field(name="Content", value=message.content[:1000], inline=False)
+    embed = discord.Embed(
+        title="🗑️ Message Deleted",
+        color=discord.Color.red()
+    )
+
+    embed.add_field(name="Channel", value=channel.mention if channel else "Unknown")
+
+    # Try to get cached message (may or may not exist)
+    if payload.cached_message:
+        msg = payload.cached_message
+        embed.add_field(name="Author", value=msg.author.mention)
+
+        if msg.content:
+            embed.add_field(name="Content", value=msg.content[:1000], inline=False)
+
+    else:
+        embed.add_field(name="Author", value="Unknown (not cached)")
+        embed.add_field(name="Content", value="Message not in cache", inline=False)
 
     await log_channel.send(embed=embed)
+
+@bot.event
+async def on_raw_message_edit(payload):
+
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        return
+
+    settings = await get_settings(guild.id)
+
+    if not settings.get("logger_enabled"):
+        return
+
+    log_channel = guild.get_channel(settings.get("log_channel"))
+    if not log_channel:
+        return
+
+    if payload.cached_message:
+        before = payload.cached_message
+        after = payload.data.get("content")
+
+        embed = discord.Embed(
+            title="✏️ Message Edited",
+            color=discord.Color.orange()
+        )
+
+        embed.add_field(name="Author", value=before.author.mention)
+        embed.add_field(name="Channel", value=f"<#{payload.channel_id}>")
+        embed.add_field(name="Before", value=before.content[:1000], inline=False)
+        embed.add_field(name="After", value=after[:1000] if after else "*empty*", inline=False)
+
+        await log_channel.send(embed=embed)
 
 # ---------------- VOICE VIP ----------------
 @bot.event
@@ -321,3 +370,4 @@ async def showsettings(interaction: discord.Interaction):
 
 
 bot.run(TOKEN)
+
