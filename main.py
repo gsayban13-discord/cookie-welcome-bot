@@ -173,7 +173,7 @@ async def on_voice_state_update(member, before, after):
         msg = msg.replace("{channel}", after.channel.name)
 
         try:
-            await after.channel.send(msg)
+            await after.channel.send(msg, delete_after=10)
         except:
             fallback = member.guild.get_channel(settings.get("log_channel"))
             if fallback:
@@ -422,6 +422,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
