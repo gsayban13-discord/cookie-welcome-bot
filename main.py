@@ -177,7 +177,7 @@ async def on_voice_state_update(member, before, after):
         except:
             fallback = member.guild.get_channel(settings.get("log_channel"))
             if fallback:
-                await fallback.send(msg)
+                await fallback.send(msg, delete_after=10)
 
 # ---------------- TIKTOK CHECK ----------------
 async def check_tiktok_live():
@@ -422,5 +422,6 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
