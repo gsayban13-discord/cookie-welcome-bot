@@ -368,6 +368,59 @@ async def showsettings(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@tree.command(
+    name="setvoicevip",
+    description="Set which user receives a special voice join welcome",
+    guild=discord.Object(id=GUILD_ID)
+)
+async def setvoicevip(interaction: discord.Interaction, user: discord.Member):
+
+    await update_settings(interaction.guild.id, {
+        "voice_vip_user": user.id
+    })
+
+    await interaction.response.send_message(
+        f"✅ VIP voice user set to {user.mention}",
+        ephemeral=True
+    )
+
+@tree.command(
+    name="setvoicemsg",
+    description="Set the custom message when the VIP joins voice",
+    guild=discord.Object(id=GUILD_ID)
+)
+async def setvoicemsg(interaction: discord.Interaction, message: str):
+
+    await update_settings(interaction.guild.id, {
+        "voice_vip_message": message
+    })
+
+    await interaction.response.send_message(
+        "✅ VIP voice message saved!",
+        ephemeral=True
+    )
+
+@tree.command(
+    name="togglevoicevip",
+    description="Enable or disable VIP voice welcome feature",
+    guild=discord.Object(id=GUILD_ID)
+)
+async def togglevoicevip(interaction: discord.Interaction):
+
+    settings = await get_settings(interaction.guild.id)
+    new_val = 0 if settings.get("voice_vip_enabled") else 1
+
+    await update_settings(interaction.guild.id, {
+        "voice_vip_enabled": new_val
+    })
+
+    status = "enabled" if new_val else "disabled"
+
+    await interaction.response.send_message(
+        f"✅ VIP voice welcome {status}",
+        ephemeral=True
+    )
 
 bot.run(TOKEN)
+
 
