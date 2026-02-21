@@ -191,7 +191,7 @@ async def on_raw_message_edit(payload):
             image_url = None
 
             for att in before.attachments:
-                files.append)f"[{att.filename}]({att.url})")
+                files.append(f"[{att.filename}]({att.url})")
 
                 if att.content_type and "image" in att.content_type:
                     image_url = att.url
@@ -475,6 +475,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
