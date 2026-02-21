@@ -172,17 +172,17 @@ async def check_tiktok_live():
         await asyncio.sleep(180)
 
 # ---------------- COMMANDS ----------------
-@tree.command(name="setchannel", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="setchannel", description="Set welcome channel", guild=discord.Object(id=GUILD_ID))
 async def setchannel(interaction: discord.Interaction, channel: discord.TextChannel):
     await update_settings(interaction.guild.id, {"welcome_channel": channel.id})
     await interaction.response.send_message("✅ Welcome channel set!", ephemeral=True)
 
-@tree.command(name="setrole", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="setrole", description="Set the role automatically given to new members", guild=discord.Object(id=GUILD_ID))
 async def setrole(interaction: discord.Interaction, role: discord.Role):
     await update_settings(interaction.guild.id, {"auto_role": role.id})
     await interaction.response.send_message("✅ Role set!", ephemeral=True)
 
-@tree.command(name="setbackground", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="setbackground", description="Upload a custom background for welcome cards", guild=discord.Object(id=GUILD_ID))
 async def setbackground(interaction: discord.Interaction, image: discord.Attachment):
     path = f"backgrounds/{interaction.guild.id}.png"
     os.makedirs("backgrounds", exist_ok=True)
@@ -191,24 +191,24 @@ async def setbackground(interaction: discord.Interaction, image: discord.Attachm
     await update_settings(interaction.guild.id, {"background": path})
     await interaction.response.send_message("✅ Background saved!", ephemeral=True)
 
-@tree.command(name="setlogchannel", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="setlogchannel", description="Set the channel where deleted/edited messages will be logged", guild=discord.Object(id=GUILD_ID))
 async def setlogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
     await update_settings(interaction.guild.id, {"log_channel": channel.id, "logger_enabled": 1})
     await interaction.response.send_message("✅ Log channel set!", ephemeral=True)
 
-@tree.command(name="togglelogger", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="togglelogger", description="Enable or disable the message logging system", guild=discord.Object(id=GUILD_ID))
 async def togglelogger(interaction: discord.Interaction):
     settings = await get_settings(interaction.guild.id)
     new_val = 0 if settings.get("logger_enabled") else 1
     await update_settings(interaction.guild.id, {"logger_enabled": new_val})
     await interaction.response.send_message("✅ Logger toggled!", ephemeral=True)
 
-@tree.command(name="settiktok", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="settiktok", description="Set the TikTok username to monitor for live streams", guild=discord.Object(id=GUILD_ID))
 async def settiktok(interaction: discord.Interaction, username: str):
     await update_settings(interaction.guild.id, {"tiktok_username": username})
     await interaction.response.send_message("✅ TikTok username saved!", ephemeral=True)
 
-@tree.command(name="settiktokchannel", guild=discord.Object(id=GUILD_ID))
+@tree.command(name="settiktokchannel", description="Set the channel where TikTok live alerts will be posted", guild=discord.Object(id=GUILD_ID))
 async def settiktokchannel(interaction: discord.Interaction, channel: discord.TextChannel):
     await update_settings(interaction.guild.id, {"tiktok_channel": channel.id})
     await interaction.response.send_message("✅ TikTok channel set!", ephemeral=True)
@@ -318,5 +318,6 @@ async def showsettings(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 bot.run(TOKEN)
