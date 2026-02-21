@@ -1,6 +1,7 @@
 discord.py
 python-dotenv
-aiosqlite
-pillow
+motor
+pymongo
+Pillow
 requests
 beautifulsoup4

@@ -3,28 +3,43 @@ from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
 import os
-import aiosqlite
 import random
-from welcome_card import create_welcome_card
 import asyncio
 import requests
-from bs4 import BeautifulSoup
-
+from motor.motor_asyncio import AsyncIOMotorClient
+from welcome_card import create_welcome_card
 
 load_dotenv()
-TOKEN = os.getenv("TOKEN")
 
+TOKEN = os.getenv("TOKEN")
+MONGO_URI = os.getenv("MONGO_URI")
+
+# ---------------- DISCORD ----------------
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
-
-DB = "database.db"
 GUILD_ID = 1459935661116100730
 
+# ---------------- MONGODB ----------------
+mongo_client = AsyncIOMotorClient(MONGO_URI)
+db = mongo_client["cookie_bot"]
+settings_col = db["settings"]
+
+async def get_settings(guild_id):
+    data = await settings_col.find_one({"guild_id": guild_id})
+    return data or {}
+
+async def update_settings(guild_id, updates: dict):
+    await settings_col.update_one(
+        {"guild_id": guild_id},
+        {"$set": updates},
+        upsert=True
+    )
+
+# ---------------- AI MESSAGES ----------------
 AI_MESSAGES = [
     "🌸 A new cutie has arrived! Welcome {user}!",
     "✨ Everyone say hiiii to {user}!",
@@ -35,42 +50,101 @@ AI_MESSAGES = [
     "🌷 {user} joined the cookie paradise!",
 ]
 
-# ---------------- DATABASE SETUP ----------------
+# ---------------- READY ----------------
+@bot.event
+async def on_ready():
+    await tree.sync(guild=discord.Object(id=GUILD_ID))
+    bot.loop.create_task(check_tiktok_live())
+    print(f"Logged in as {bot.user}")
 
-async def setup_db():
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                guild_id INTEGER PRIMARY KEY,
-                welcome_channel INTEGER,
-                auto_role INTEGER,
-                background TEXT,
-                log_channel INTEGER,
-                logger_enabled INTEGER DEFAULT 0,
-                tiktok_username TEXT,
-                tiktok_channel INTEGER,
-                tiktok_live INTEGER DEFAULT 0,
-                voice_vip_user INTEGER,
-                voice_vip_channel INTEGER,
-                voice_vip_enabled INTEGER DEFAULT 0,
-                voice_vip_message TEXT
+# ---------------- MEMBER JOIN ----------------
+@bot.event
+async def on_member_join(member):
+    settings = await get_settings(member.guild.id)
+
+    channel_id = settings.get("welcome_channel")
+    role_id = settings.get("auto_role")
+    bg_path = settings.get("background")
+
+    if role_id:
+        role = member.guild.get_role(role_id)
+        if role:
+            await member.add_roles(role)
+
+    if channel_id:
+        channel = member.guild.get_channel(channel_id)
+        if channel:
+            card = await create_welcome_card(member, bg_path)
+            message = random.choice(AI_MESSAGES).format(user=member.mention)
+
+            await channel.send(
+                message,
+                file=discord.File(card, "welcome.png")
             )
-            """
-        )
-        await db.commit()
 
+# ---------------- LOGGER ----------------
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot or not message.guild:
+        return
+
+    settings = await get_settings(message.guild.id)
+    if not settings.get("logger_enabled"):
+        return
+
+    log_channel = message.guild.get_channel(settings.get("log_channel"))
+    if not log_channel:
+        return
+
+    embed = discord.Embed(title="🗑️ Message Deleted", color=discord.Color.red())
+    embed.add_field(name="Author", value=message.author.mention)
+    embed.add_field(name="Channel", value=message.channel.mention)
+
+    if message.content:
+        embed.add_field(name="Content", value=message.content[:1000], inline=False)
+
+    await log_channel.send(embed=embed)
+
+# ---------------- VOICE VIP ----------------
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if before.channel is None and after.channel is not None:
+
+        settings = await get_settings(member.guild.id)
+
+        if not settings.get("voice_vip_enabled"):
+            return
+
+        if member.id != settings.get("voice_vip_user"):
+            return
+
+        msg = settings.get("voice_vip_message", "🎤 {user} joined voice!")
+
+        msg = msg.replace("{user}", member.mention)
+        msg = msg.replace("{channel}", after.channel.name)
+
+        try:
+            await after.channel.send(msg)
+        except:
+            fallback = member.guild.get_channel(settings.get("log_channel"))
+            if fallback:
+                await fallback.send(msg)
+
+# ---------------- TIKTOK CHECK ----------------
 async def check_tiktok_live():
     await bot.wait_until_ready()
 
     while not bot.is_closed():
-        async with aiosqlite.connect(DB) as db:
-            cursor = await db.execute(
-                "SELECT guild_id, tiktok_username, tiktok_channel, tiktok_live FROM settings WHERE tiktok_username IS NOT NULL"
-            )
-            rows = await cursor.fetchall()
+        async for settings in settings_col.find({"tiktok_username": {"$exists": True}}):
 
-        for guild_id, username, channel_id, was_live in rows:
+            guild = bot.get_guild(settings["guild_id"])
+            if not guild:
+                continue
+
+            username = settings["tiktok_username"]
+            channel_id = settings.get("tiktok_channel")
+            was_live = settings.get("tiktok_live", 0)
+
             try:
                 url = f"https://www.tiktok.com/@{username}/live"
                 headers = {"User-Agent": "Mozilla/5.0"}
@@ -79,428 +153,75 @@ async def check_tiktok_live():
                 is_live = "LIVE" in response.text
 
                 if is_live and not was_live:
-                    guild = bot.get_guild(guild_id)
                     channel = guild.get_channel(channel_id)
- 
+
                     if channel:
                         await channel.send(
-                            f"🔴 **{username} is LIVE on TikTok!**\nhttps://www.tiktok.com/@{username}/live"
+                            content=f"@everyone 🔴 **{username} is LIVE!**\n{url}",
+                            allowed_mentions=discord.AllowedMentions(everyone=True)
                         )
 
-                    async with aiosqlite.connect(DB) as db:
-                        await db.execute(
-                            "UPDATE settings SET tiktok_live=1 WHERE guild_id=?",
-                            (guild_id,)
-                        )
-                        await db.commit()
+                    await update_settings(guild.id, {"tiktok_live": 1})
 
                 elif not is_live and was_live:
-                    async with aiosqlite.connect(DB) as db:
-                        await db.execute(
-                            "UPDATE settings SET tiktok_live=0 WHERE guild_id=?",
-                            (guild_id,)
-                        )
-                        await db.commit()
+                    await update_settings(guild.id, {"tiktok_live": 0})
 
             except Exception as e:
-                print("TikTok check error:", e)
+                print("TikTok error:", e)
 
-        await asyncio.sleep(180)  # 3 minutes
+        await asyncio.sleep(180)
 
-
-
-# ---------------- BOT READY ----------------
-
-@bot.event
-async def on_ready():
-    await setup_db()
-    await tree.sync(guild=discord.Object(id=GUILD_ID))
-    print(f"Logged in as {bot.user}")
-    bot.loop.create_task(check_tiktok_live())
-
-
-# ---------------- MEMBER JOIN EVENT ----------------
-
-@bot.event
-async def on_member_join(member):
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT welcome_channel, auto_role, background FROM settings WHERE guild_id=?",
-            (member.guild.id,),
-        )
-        row = await cursor.fetchone()
-
-    if not row:
-        return
-
-    channel_id, role_id, bg_path = row
-
-    channel = member.guild.get_channel(channel_id)
-    role = member.guild.get_role(role_id)
-
-    if role:
-        await member.add_roles(role)
-
-    card = await create_welcome_card(member, bg_path)
-
-    if channel:
-        message = random.choice(AI_MESSAGES).format(user=member.mention)
-        await channel.send(
-            message,
-            file=discord.File(card, "welcome.png"),
-        )
-
-# ---------------- MESSAGE DELETE EVENT ----------------
-
-@bot.event
-async def on_message_delete(message):
-
-    if message.author.bot:
-        return
-
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT log_channel, logger_enabled FROM settings WHERE guild_id=?",
-            (message.guild.id,)
-        )
-        row = await cursor.fetchone()
-
-    if not row or not row[1]:
-        return
-
-    log_channel = message.guild.get_channel(row[0])
-    if not log_channel:
-        return
-
-    embed = discord.Embed(
-        title="🗑️ Message Deleted",
-        color=discord.Color.red()
-    )
-
-    embed.add_field(name="Author", value=message.author.mention, inline=True)
-    embed.add_field(name="Channel", value=message.channel.mention, inline=True)
-
-    if message.content:
-        embed.add_field(name="Content", value=message.content[:1000], inline=False)
-
-    embed.set_footer(text=f"User ID: {message.author.id}")
-
-    await log_channel.send(embed=embed)
-
-# ---------------- MESSAGE EDIT EVENT ----------------
-
-@bot.event
-async def on_message_edit(before, after):
-
-    if before.author.bot:
-        return
-
-    if before.content == after.content:
-        return
-
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT log_channel, logger_enabled FROM settings WHERE guild_id=?",
-            (before.guild.id,)
-        )
-        row = await cursor.fetchone()
-
-    if not row or not row[1]:
-        return
-
-    log_channel = before.guild.get_channel(row[0])
-    if not log_channel:
-        return
-
-    embed = discord.Embed(
-        title="✏️ Message Edited",
-        color=discord.Color.orange()
-    )
-
-    embed.add_field(name="Author", value=before.author.mention, inline=True)
-    embed.add_field(name="Channel", value=before.channel.mention, inline=True)
-
-    embed.add_field(name="Before", value=before.content[:1000] or "*empty*", inline=False)
-    embed.add_field(name="After", value=after.content[:1000] or "*empty*", inline=False)
-
-    embed.set_footer(text=f"User ID: {before.author.id}")
-
-    await log_channel.send(embed=embed)
-
-
-# ---------------- VOICE STATE UPDATE EVENT ----------------
-@bot.event
-async def on_voice_state_update(member, before, after):
-
-    # Only trigger when user joins voice (not switching channels)
-    if before.channel is None and after.channel is not None:
-
-        async with aiosqlite.connect(DB) as db:
-            cursor = await db.execute(
-                """SELECT voice_vip_user,
-                          voice_vip_enabled,
-                          voice_vip_message
-                   FROM settings WHERE guild_id=?""",
-                (member.guild.id,)
-            )
-            row = await cursor.fetchone()
-
-        if not row:
-            return
-
-        vip_user, enabled, message = row
-
-        # Feature disabled
-        if not enabled or not vip_user:
-            return
-
-        # Not the VIP user
-        if member.id != vip_user:
-            return
-
-        # Send message directly to voice channel's side chat
-        voice_channel = after.channel
-
-        msg = message or "🎤 {user} joined voice chat!"
-        msg = msg.replace("{user}", member.mention)
-        msg = msg.replace("{channel}", voice_channel.name)
-
-        await voice_channel.send(msg)
-
-
-# ---------------- SET VIP VOICE USER ----------------
-@tree.command(name="setvoicevip", description="Set VIP voice user",
-              guild=discord.Object(id=GUILD_ID))
-async def setvoicevip(interaction: discord.Interaction, user: discord.Member):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        INSERT INTO settings (guild_id, voice_vip_user)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET voice_vip_user=excluded.voice_vip_user
-        """, (interaction.guild.id, user.id))
-        await db.commit()
-
-    await interaction.response.send_message("✅ VIP user set!", ephemeral=True)
-
-
-# ---------------- SET VIP VOICE WELCOME MESSAGE ----------------
-@tree.command(name="setvoicemsg", description="Set VIP voice welcome message",
-              guild=discord.Object(id=GUILD_ID))
-async def setvoicemsg(interaction: discord.Interaction, message: str):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        INSERT INTO settings (guild_id, voice_vip_message)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET voice_vip_message=excluded.voice_vip_message
-        """, (interaction.guild.id, message))
-        await db.commit()
-
-    await interaction.response.send_message("✅ Voice welcome message set!", ephemeral=True)
-
-
-# ---------------- TOGGLE VIP VOICE WELCOME ----------------
-@tree.command(name="togglevoicevip", description="Toggle VIP voice welcome",
-              guild=discord.Object(id=GUILD_ID))
-async def togglevoicevip(interaction: discord.Interaction):
-
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT voice_vip_enabled FROM settings WHERE guild_id=?",
-            (interaction.guild.id,)
-        )
-        row = await cursor.fetchone()
-
-        new_value = 0 if row and row[0] else 1
-
-        await db.execute("""
-        INSERT INTO settings (guild_id, voice_vip_enabled)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET voice_vip_enabled=excluded.voice_vip_enabled
-        """, (interaction.guild.id, new_value))
-        await db.commit()
-
-    status = "enabled" if new_value else "disabled"
-    await interaction.response.send_message(f"✅ VIP voice welcome {status}.", ephemeral=True)
-
-
-# ---------------- TOGGLE LOGGER ----------------
-@tree.command(name="togglelogger", description="Enable or disable message logger",
-              guild=discord.Object(id=1459935661116100730))
-@app_commands.checks.has_permissions(administrator=True)
-async def togglelogger(interaction: discord.Interaction):
-
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT logger_enabled FROM settings WHERE guild_id=?",
-            (interaction.guild.id,)
-        )
-        row = await cursor.fetchone()
-
-        new_value = 0 if row and row[0] else 1
-
-        await db.execute("""
-            INSERT INTO settings (guild_id, logger_enabled)
-            VALUES (?, ?)
-            ON CONFLICT(guild_id)
-            DO UPDATE SET logger_enabled=excluded.logger_enabled
-        """, (interaction.guild.id, new_value))
-        await db.commit()
-
-    status = "enabled" if new_value else "disabled"
-    await interaction.response.send_message(f"✅ Logger {status}!", ephemeral=True)
-
-
-# ---------------- SET log channel ----------------
-@tree.command(name="setlogchannel", description="Set private message log channel",
-              guild=discord.Object(id=1459935661116100730))
-@app_commands.checks.has_permissions(administrator=True)
-async def setlogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-            INSERT INTO settings (guild_id, log_channel, logger_enabled)
-            VALUES (?, ?, 1)
-            ON CONFLICT(guild_id)
-            DO UPDATE SET log_channel=excluded.log_channel, logger_enabled=1
-        """, (interaction.guild.id, channel.id))
-        await db.commit()
-
-    await interaction.response.send_message("✅ Log channel set!", ephemeral=True)
-
-# ---------------- SET BACKGROUND ----------------
-
-@tree.command(
-    name="setbackground",
-    description="Upload custom background",
-    guild=discord.Object(id=1459935661116100730),
-)
-@app_commands.checks.has_permissions(administrator=True)
-async def setbackground(interaction: discord.Interaction, image: discord.Attachment):
-    if not image.content_type or not image.content_type.startswith("image"):
-        await interaction.response.send_message(
-            "❌ Upload an image.", ephemeral=True
-        )
-        return
-
-    os.makedirs("backgrounds", exist_ok=True)
-    path = f"backgrounds/{interaction.guild.id}.png"
-    await image.save(path)
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            """
-            INSERT INTO settings (guild_id, background)
-            VALUES (?, ?)
-            ON CONFLICT(guild_id)
-            DO UPDATE SET background=excluded.background
-            """,
-            (interaction.guild.id, path),
-        )
-        await db.commit()
-
-    await interaction.response.send_message("✅ Background saved!", ephemeral=True)
-
-# ---------------- SET CHANNEL ----------------
-
-@tree.command(
-    name="setchannel",
-    description="Set welcome channel",
-    guild=discord.Object(id=1459935661116100730),
-)
-@app_commands.checks.has_permissions(administrator=True)
+# ---------------- COMMANDS ----------------
+@tree.command(name="setchannel", guild=discord.Object(id=GUILD_ID))
 async def setchannel(interaction: discord.Interaction, channel: discord.TextChannel):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            """
-            INSERT INTO settings (guild_id, welcome_channel)
-            VALUES (?, ?)
-            ON CONFLICT(guild_id)
-            DO UPDATE SET welcome_channel=excluded.welcome_channel
-            """,
-            (interaction.guild.id, channel.id),
-        )
-        await db.commit()
+    await update_settings(interaction.guild.id, {"welcome_channel": channel.id})
+    await interaction.response.send_message("✅ Welcome channel set!", ephemeral=True)
 
-    await interaction.response.send_message("✅ Channel set!", ephemeral=True)
-
-# ---------------- SET ROLE ----------------
-
-@tree.command(
-    name="setrole",
-    description="Set auto role",
-    guild=discord.Object(id=1459935661116100730),
-)
-@app_commands.checks.has_permissions(administrator=True)
+@tree.command(name="setrole", guild=discord.Object(id=GUILD_ID))
 async def setrole(interaction: discord.Interaction, role: discord.Role):
-    async with aiosqlite.connect(DB) as db: 
-        await db.execute(
-            """
-            INSERT INTO settings (guild_id, auto_role)
-            VALUES (?, ?)
-            ON CONFLICT(guild_id)
-            DO UPDATE SET auto_role=excluded.auto_role
-            """,
-            (interaction.guild.id, role.id),
-        )
-        await db.commit()
-
+    await update_settings(interaction.guild.id, {"auto_role": role.id})
     await interaction.response.send_message("✅ Role set!", ephemeral=True)
 
+@tree.command(name="setbackground", guild=discord.Object(id=GUILD_ID))
+async def setbackground(interaction: discord.Interaction, image: discord.Attachment):
+    path = f"backgrounds/{interaction.guild.id}.png"
+    os.makedirs("backgrounds", exist_ok=True)
+    await image.save(path)
 
-# ---------------- SET TIKTOK USERNAME ----------------
-@tree.command(name="settiktok", description="Set TikTok username",
-              guild=discord.Object(id=1459935661116100730))
+    await update_settings(interaction.guild.id, {"background": path})
+    await interaction.response.send_message("✅ Background saved!", ephemeral=True)
+
+@tree.command(name="setlogchannel", guild=discord.Object(id=GUILD_ID))
+async def setlogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
+    await update_settings(interaction.guild.id, {"log_channel": channel.id, "logger_enabled": 1})
+    await interaction.response.send_message("✅ Log channel set!", ephemeral=True)
+
+@tree.command(name="togglelogger", guild=discord.Object(id=GUILD_ID))
+async def togglelogger(interaction: discord.Interaction):
+    settings = await get_settings(interaction.guild.id)
+    new_val = 0 if settings.get("logger_enabled") else 1
+    await update_settings(interaction.guild.id, {"logger_enabled": new_val})
+    await interaction.response.send_message("✅ Logger toggled!", ephemeral=True)
+
+@tree.command(name="settiktok", guild=discord.Object(id=GUILD_ID))
 async def settiktok(interaction: discord.Interaction, username: str):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        INSERT INTO settings (guild_id, tiktok_username)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET tiktok_username=excluded.tiktok_username
-        """, (interaction.guild.id, username))
-        await db.commit()
-
+    await update_settings(interaction.guild.id, {"tiktok_username": username})
     await interaction.response.send_message("✅ TikTok username saved!", ephemeral=True)
 
-
-# ---------------- SET TIKTOK ANNOUNCEMENT CHANNEL ----------------
-@tree.command(name="settiktokchannel", description="Set TikTok announcement channel",
-              guild=discord.Object(id=1459935661116100730))
+@tree.command(name="settiktokchannel", guild=discord.Object(id=GUILD_ID))
 async def settiktokchannel(interaction: discord.Interaction, channel: discord.TextChannel):
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        INSERT INTO settings (guild_id, tiktok_channel)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id)
-        DO UPDATE SET tiktok_channel=excluded.tiktok_channel
-        """, (interaction.guild.id, channel.id))
-        await db.commit()
-
+    await update_settings(interaction.guild.id, {"tiktok_channel": channel.id})
     await interaction.response.send_message("✅ TikTok channel set!", ephemeral=True)
 
-
-# ---------------- SHOW WELCOME PREVIEW ----------------
+# ---------------- DEBUG: WELCOME PREVIEW ----------------
 @tree.command(name="showwelcomepreview", description="Preview welcome message",
               guild=discord.Object(id=GUILD_ID))
 async def showwelcomepreview(interaction: discord.Interaction, user: discord.Member):
 
-    await interaction.response.defer()  # ⭐ IMPORTANT FIX
+    await interaction.response.defer()
 
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT background FROM settings WHERE guild_id=?",
-            (interaction.guild.id,)
-        )
-        row = await cursor.fetchone()
-
-    bg_path = row[0] if row else None
+    settings = await get_settings(interaction.guild.id)
+    bg_path = settings.get("background")
 
     card = await create_welcome_card(user, bg_path)
     message = random.choice(AI_MESSAGES).format(user=user.mention)
@@ -511,29 +232,91 @@ async def showwelcomepreview(interaction: discord.Interaction, user: discord.Mem
     )
 
 
-
-# ---------------- SHOW LIVE ANNOUNCEMENT ----------------
+# ---------------- DEBUG: TIKTOK PREVIEW ----------------
 @tree.command(name="showliveannouncement", description="Preview TikTok live announcement",
               guild=discord.Object(id=GUILD_ID))
 async def showliveannouncement(interaction: discord.Interaction):
 
-    async with aiosqlite.connect(DB) as db:
-        cursor = await db.execute(
-            "SELECT tiktok_username FROM settings WHERE guild_id=?",
-            (interaction.guild.id,)
-        )
-        row = await cursor.fetchone()
+    settings = await get_settings(interaction.guild.id)
+    username = settings.get("tiktok_username")
 
-    if not row or not row[0]:
-        await interaction.response.send_message("❌ TikTok username not set.", ephemeral=True)
+    if not username:
+        await interaction.response.send_message(
+            "❌ TikTok username not set.",
+            ephemeral=True
+        )
         return
 
-    username = row[0]
-
     await interaction.response.send_message(
-        f"🔴 **{username} is LIVE on TikTok!**\nhttps://www.tiktok.com/@{username}/live"
+        content=f"@everyone 🔴 **{username} is LIVE!**\nhttps://www.tiktok.com/@{username}/live",
+        allowed_mentions=discord.AllowedMentions(everyone=True)
     )
 
+    # ---------------- DEBUG: SHOW SETTINGS ----------------
+@tree.command(name="showsettings", description="View current bot settings",
+              guild=discord.Object(id=GUILD_ID))
+async def showsettings(interaction: discord.Interaction):
 
+    settings = await get_settings(interaction.guild.id)
+
+    embed = discord.Embed(
+        title="⚙️ Bot Settings",
+        color=discord.Color.purple()
+    )
+
+    # Welcome
+    welcome_channel = settings.get("welcome_channel")
+    auto_role = settings.get("auto_role")
+
+    embed.add_field(
+        name="👋 Welcome System",
+        value=f"Channel: {f'<#{welcome_channel}>' if welcome_channel else 'Not set'}\n"
+              f"Auto Role: {f'<@&{auto_role}>' if auto_role else 'Not set'}",
+        inline=False
+    )
+
+    # Logger
+    logger_channel = settings.get("log_channel")
+    logger_enabled = settings.get("logger_enabled")
+
+    embed.add_field(
+        name="📝 Logger",
+        value=f"Enabled: {'✅ Yes' if logger_enabled else '❌ No'}\n"
+              f"Channel: {f'<#{logger_channel}>' if logger_channel else 'Not set'}",
+        inline=False
+    )
+
+    # TikTok
+    tiktok_user = settings.get("tiktok_username")
+    tiktok_channel = settings.get("tiktok_channel")
+
+    embed.add_field(
+        name="🎵 TikTok Notifier",
+        value=f"Username: {tiktok_user if tiktok_user else 'Not set'}\n"
+              f"Channel: {f'<#{tiktok_channel}>' if tiktok_channel else 'Not set'}",
+        inline=False
+    )
+
+    # Voice VIP
+    vip_user = settings.get("voice_vip_user")
+    vip_enabled = settings.get("voice_vip_enabled")
+
+    embed.add_field(
+        name="🎤 VIP Voice Welcome",
+        value=f"Enabled: {'✅ Yes' if vip_enabled else '❌ No'}\n"
+              f"VIP User: {f'<@{vip_user}>' if vip_user else 'Not set'}",
+        inline=False
+    )
+
+    # Background
+    bg = settings.get("background")
+
+    embed.add_field(
+        name="🎨 Welcome Background",
+        value="Custom Background Set" if bg else "Default",
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 bot.run(TOKEN)
