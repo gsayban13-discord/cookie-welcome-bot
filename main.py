@@ -110,7 +110,7 @@ async def on_raw_message_delete(payload):
 
     # Try to get cached message (may or may not exist)
     if payload.cached_message:
-    msg = payload.cached_message
+        msg = payload.cached_message
 
     # Ignore bots
     if msg.author.bot:
@@ -475,6 +475,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
