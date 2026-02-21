@@ -111,6 +111,10 @@ async def on_raw_message_delete(payload):
     # Try to get cached message (may or may not exist)
     if payload.cached_message:
         msg = payload.cached_message
+        
+        if msg.author.bot:
+            return
+            
         embed.add_field(name="Author", value=msg.author.mention)
 
         if msg.content:
@@ -130,7 +134,6 @@ async def on_raw_message_edit(payload):
         return
 
     settings = await get_settings(guild.id)
-
     if not settings.get("logger_enabled"):
         return
 
@@ -140,7 +143,14 @@ async def on_raw_message_edit(payload):
 
     if payload.cached_message:
         before = payload.cached_message
+
+        if before.author.bot:
+            return
+
         after = payload.data.get("content")
+
+        if not after or before.content == after:
+            return
 
         embed = discord.Embed(
             title="✏️ Message Edited",
@@ -150,7 +160,7 @@ async def on_raw_message_edit(payload):
         embed.add_field(name="Author", value=before.author.mention)
         embed.add_field(name="Channel", value=f"<#{payload.channel_id}>")
         embed.add_field(name="Before", value=before.content[:1000], inline=False)
-        embed.add_field(name="After", value=after[:1000] if after else "*empty*", inline=False)
+        embed.add_field(name="After", value=after[:1000], inline=False)
 
         await log_channel.send(embed=embed)
 
@@ -422,6 +432,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
