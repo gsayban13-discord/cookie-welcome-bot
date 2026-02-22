@@ -28,12 +28,6 @@ async def on_ready():
 
     guild = discord.Object(id=1459935661116100730)
 
-    print("🧹 Cleaning old global commands...")
-
-    # 1️⃣ Clear global commands
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
-
     # 2️⃣ Sync commands ONLY to your guild
     synced = await bot.tree.sync(guild=guild)
 
@@ -64,6 +58,7 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
 
 
