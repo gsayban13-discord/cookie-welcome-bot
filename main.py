@@ -231,6 +231,14 @@ async def on_voice_state_update(member, before, after):
             if fallback:
                 await fallback.send(msg, delete_after=20)
 
+def get_tiktok_thumbnail(html):
+    import re
+    
+    match = re.search(r'property="og:image" content="([^"]+)"', html)
+    if match:
+        return match.group(1)
+    return None
+
 # ---------------- TIKTOK CHECK ----------------
 async def check_tiktok_live():
     await bot.wait_until_ready()
@@ -250,8 +258,11 @@ async def check_tiktok_live():
                 url = f"https://www.tiktok.com/@{username}/live"
                 headers = {"User-Agent": "Mozilla/5.0"}
                 response = requests.get(url, headers=headers)
+                html = response.text
 
-                is_live = "LIVE" in response.text
+                is_live = "LIVE" in html
+
+                thumbnail = get_tiktok_thumbnail(html)
 
                 if is_live and not was_live:
                     channel = guild.get_channel(channel_id)
@@ -270,7 +281,9 @@ async def check_tiktok_live():
                         )
 
                         embed.set_footer(text="TikTok Live Notification")
-
+                        if thumbnail:
+                            embed.set_image(url=thumbnail)
+                            
                         await channel.send(
                             content=f"@everyone\n\nhttps://www.tiktok.com/@{username}/live",
                             embed=embed,
@@ -495,6 +508,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
