@@ -26,17 +26,19 @@ bot.settings_col = bot.db["settings"]
 @bot.event
 async def on_ready():
 
-    print("🧹 Clearing OLD GLOBAL commands...")
+    guild = discord.Object(id=1459935661116100730)
 
-    # STEP 1 — Remove all global commands
+    print("🧹 Cleaning old global commands...")
+
+    # 1️⃣ Clear global commands
     bot.tree.clear_commands(guild=None)
     await bot.tree.sync()
 
-    # STEP 2 — Force sync ONLY to your guild
-    guild = discord.Object(id=1459935661116100730)
-    await bot.tree.sync(guild=guild)
+    # 2️⃣ Sync commands ONLY to your guild
+    synced = await bot.tree.sync(guild=guild)
 
-    print("✅ Global commands wiped successfully")
+    print(f"✅ Synced {len(synced)} guild commands")
+
     print("====================================")
     print(f"🤖 Logged in as: {bot.user}")
     print(f"🧠 Connected to MongoDB: {bot.db.name}")
@@ -62,5 +64,6 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
 
