@@ -28,7 +28,7 @@ async def on_ready():
     await bot.tree.sync()
     print("====================================")
     print(f"🤖 Logged in as: {bot.user}")
-    print(f"🧠 Connected to MongoDB")
+    print(f"🧠 Connected to MongoDB: {bot.db.name}")
     print("🚀 Bot is fully ready!")
     print("====================================")
 
@@ -50,4 +50,5 @@ async def main():
 
 
 import asyncio
+
 asyncio.run(main())
