@@ -25,7 +25,12 @@ bot.settings_col = bot.db["settings"]
 # ---------- LOAD COGS ----------
 @bot.event
 async def on_ready():
+    
+    bot.tree.clear_commands(guild=None)
     await bot.tree.sync()
+    
+    await bot.tree.sync()
+    
     print("====================================")
     print(f"🤖 Logged in as: {bot.user}")
     print(f"🧠 Connected to MongoDB: {bot.db.name}")
@@ -52,3 +57,4 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
