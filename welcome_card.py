@@ -31,40 +31,42 @@ async def create_welcome_card(member, bg_path=None):
 
     bg.paste(avatar, (60, 60), avatar)
 
-    # ---------------- TEXT ----------------
+   # ---------------- TEXT ----------------
     name_text = member.name
     count_text = f"Member #{member.guild.member_count}"
 
+    font_path = "fonts/Poppins-SemiBold.ttf"
+
     try:
-        font_name = ImageFont.truetype("arial.ttf", 50)   # bigger
-        font_small = ImageFont.truetype("arial.ttf", 28)
+        font_name = ImageFont.truetype(font_path, 60)   # BIG username
+        font_small = ImageFont.truetype(font_path, 32)  # member count
     except:
         font_name = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-    text_x = 330
-    name_y = 120
-    count_y = 180
+    text_x = 320
+    name_y = 115
+    count_y = 185
 
     main_color = "#3b2a2a"
-    outline_color = "white"
+    shadow_color = (0, 0, 0, 120)  # soft shadow
 
-    def draw_text_with_outline(draw, pos, text, font, fill, outline):
+    def draw_soft_shadow(draw, pos, text, font):
         x, y = pos
-        for dx in (-2, -1, 0, 1, 2):
-            for dy in (-2, -1, 0, 1, 2):
-                if dx != 0 or dy != 0:
-                    draw.text((x+dx, y+dy), text, font=font, fill=outline)
-        draw.text((x, y), text, font=font, fill=fill)
+        draw.text((x+3, y+3), text, font=font, fill=shadow_color)
 
-    draw_text_with_outline(draw, (text_x, name_y), name_text, font_name, main_color, outline_color)
-    draw_text_with_outline(draw, (text_x, count_y), count_text, font_small, main_color, outline_color)
+    draw_soft_shadow(draw, (text_x, name_y), name_text, font_name)
+    draw_soft_shadow(draw, (text_x, count_y), count_text, font_small)
+
+    draw.text((text_x, name_y), name_text, fill=main_color, font=font_name)
+    draw.text((text_x, count_y), count_text, fill=main_color, font=font_small)
 
     # ---------------- SAVE ----------------
     path = "welcome.png"
     bg.save(path)
 
     return path
+
 
 
 
