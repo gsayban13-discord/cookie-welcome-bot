@@ -287,7 +287,7 @@ async def check_tiktok_live():
                         )
 
                         embed.add_field(
-                            name="🎥 Watch the Stream",
+                            name="🎥 Join the stream now!",
                             value=f"[Click here to join](https://www.tiktok.com/@{username}/live)",
                             inline=False
                         )
@@ -412,8 +412,8 @@ async def showliveannouncement(interaction: discord.Interaction):
         )
 
     embed.add_field(
-        name="🎥 Watch Page",
-        value=f"[Click here]({url})",
+        name="🎥 Join the stream now!",
+        value=f"[Watch now!]({url})",
         inline=False
     )
 
@@ -545,6 +545,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
