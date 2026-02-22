@@ -38,35 +38,49 @@ async def create_welcome_card(member, bg_path=None):
         font_name = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-    # ---------------- TEXT (CENTERED ON TABLE AREA) ----------------
-    name_text = member.name
-    count_text = f"Member #{member.guild.member_count}"
+    # ---------------- TEXT (MIDDLE AREA NEAR AVATAR) ----------------
 
-    # Calculate center positions
-    name_bbox = draw.textbbox((0, 0), name_text, font=font_name)
-    name_width = name_bbox[2] - name_bbox[0]
+name_text = member.name
+count_text = f"Member #{member.guild.member_count}"
 
-    count_bbox = draw.textbbox((0, 0), count_text, font=font_small)
-    count_width = count_bbox[2] - count_bbox[0]
+# Fonts
+try:
+    font_name = ImageFont.truetype("arial.ttf", 40)
+    font_small = ImageFont.truetype("arial.ttf", 24)
+except:
+    font_name = ImageFont.load_default()
+    font_small = ImageFont.load_default()
 
-    # Table area center (right side of image)
-    center_x = 600
+# Measure text sizes
+name_bbox = draw.textbbox((0, 0), name_text, font=font_name)
+count_bbox = draw.textbbox((0, 0), count_text, font=font_small)
 
-    # Draw texts centered
-    draw.text(
-        (center_x - name_width // 2, 175),
-        name_text,
-        fill="white",
-        font=font_name
-    )
+name_width = name_bbox[2] - name_bbox[0]
+count_width = count_bbox[2] - count_bbox[0]
 
-    draw.text(
-        (center_x - count_width // 2, 220),
-        count_text,
-        fill="white",
-        font=font_small
-    )
+# Position (middle area beside avatar)
+text_x = 330
+name_y = 130
+count_y = 175
+
+# Dark color for visibility
+text_color = "#3b2a2a"
+
+draw.text(
+    (text_x, name_y),
+    name_text,
+    fill=text_color,
+    font=font_name
+)
+
+draw.text(
+    (text_x, count_y),
+    count_text,
+    fill=text_color,
+    font=font_small
+)
 
     path = "welcome.png"
     bg.save(path)
     return path
+
