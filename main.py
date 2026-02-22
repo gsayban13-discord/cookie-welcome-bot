@@ -257,8 +257,23 @@ async def check_tiktok_live():
                     channel = guild.get_channel(channel_id)
 
                     if channel:
+                        embed = discord.Embed(
+                            title="🔴 LIVE ON TIKTOK!",
+                            description=f"**{username}** is streaming right now!",
+                            color=discord.Color.red()
+                        )
+
+                        embed.add_field(
+                            name="🎥 Watch the Stream",
+                            value=f"[Click here to join](https://www.tiktok.com/@{username}/live)",
+                            inline=False
+                        )
+
+                        embed.set_footer(text="TikTok Live Notification")
+
                         await channel.send(
-                            content=f"@everyone 🔴 **{username} is LIVE! Come and watch the stream!**\n{url}",
+                            content="@everyone",
+                            embed=embed,
                             allowed_mentions=discord.AllowedMentions(everyone=True)
                         )
 
@@ -465,6 +480,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
