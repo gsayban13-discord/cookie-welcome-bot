@@ -234,9 +234,18 @@ async def on_voice_state_update(member, before, after):
 def get_tiktok_thumbnail(html):
     import re
     
-    match = re.search(r'property="og:image" content="([^"]+)"', html)
-    if match:
-        return match.group(1)
+    patterns = [
+        r'property="og:image" content="([^"]+)"',
+        r'property=\'og:image\' content=\'([^\']+)\'',
+        r'name="og:image" content="([^"]+)"',
+        r'name=\'og:image\' content=\'([^\']+)\''
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, html)
+        if match:
+            return match.group(1)
+    
     return None
 
 # ---------------- TIKTOK CHECK ----------------
@@ -256,7 +265,10 @@ async def check_tiktok_live():
 
             try:
                 url = f"https://www.tiktok.com/@{username}/live"
-                headers = {"User-Agent": "Mozilla/5.0"}
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9"
+}
                 response = requests.get(url, headers=headers)
                 html = response.text
 
@@ -370,35 +382,47 @@ async def showliveannouncement(interaction: discord.Interaction):
     await interaction.response.defer()
 
     url = f"https://www.tiktok.com/@{username}/live"
-    headers = {"User-Agent": "Mozilla/5.0"}
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
 
     response = requests.get(url, headers=headers)
     html = response.text
 
+    # Check if live
+    is_live = "LIVE" in html
+
+    # Extract thumbnail
     thumbnail = get_tiktok_thumbnail(html)
 
-    embed = discord.Embed(
-        title="🔴 LIVE ON TIKTOK!",
-        description=f"**{username}** is streaming right now!",
-        color=discord.Color.red()
-    )
+    # Build embed based on status
+    if is_live:
+        embed = discord.Embed(
+            title="🔴 LIVE ON TIKTOK!",
+            description=f"**{username}** is streaming right now!",
+            color=discord.Color.red()
+        )
+    else:
+        embed = discord.Embed(
+            title="⚫ NOT LIVE",
+            description=f"**{username}** is currently offline.",
+            color=discord.Color.dark_grey()
+        )
 
     embed.add_field(
-        name="🎥 Watch the Stream",
-        value=f"[Click here to join]({url})",
+        name="🎥 Watch Page",
+        value=f"[Click here]({url})",
         inline=False
     )
 
-    embed.set_footer(text="TikTok Live Notification")
+    embed.set_footer(text="TikTok Live Debug Preview")
 
     if thumbnail:
         embed.set_image(url=thumbnail)
 
-    await interaction.followup.send(
-        content="@everyone",
-        embed=embed,
-        allowed_mentions=discord.AllowedMentions(everyone=True)
-    )
+    await interaction.followup.send(embed=embed)
 
     # ---------------- DEBUG: SHOW SETTINGS ----------------
 @tree.command(name="showsettings", description="View current bot settings",
@@ -521,6 +545,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
