@@ -9,13 +9,13 @@ async def create_welcome_card(member, bg_path=None):
     width, height = 900, 300
 
     # ---------------- BACKGROUND ----------------
-    if bg_path and os.path.exists(bg_path):
+    bg_path = "backgrounds/welcome.png"
+
+    if os.path.exists(bg_path):
         bg = Image.open(bg_path).convert("RGB")
         bg = bg.resize((width, height))
     else:
         bg = Image.new("RGB", (width, height), "#ffd6e7")
-
-    draw = ImageDraw.Draw(bg)
 
     # ---------------- AVATAR ----------------
     avatar_url = member.display_avatar.url
@@ -56,3 +56,4 @@ async def create_welcome_card(member, bg_path=None):
     bg.save(path)
 
     return path
+
