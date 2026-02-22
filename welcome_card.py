@@ -17,6 +17,7 @@ async def create_welcome_card(member, bg_path=None):
     else:
         bg = Image.new("RGB", (width, height), "#ffd6e7")
 
+    draw = ImageDraw.Draw(bg)
     # ---------------- AVATAR ----------------
     avatar_url = member.display_avatar.url
     response = requests.get(avatar_url)
@@ -56,4 +57,5 @@ async def create_welcome_card(member, bg_path=None):
     bg.save(path)
 
     return path
+
 
