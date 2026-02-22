@@ -272,7 +272,7 @@ async def check_tiktok_live():
                         embed.set_footer(text="TikTok Live Notification")
 
                         await channel.send(
-                            content="@everyone",
+                            content=f"@everyone\n\nhttps://www.tiktok.com/@{username}/live",
                             embed=embed,
                             allowed_mentions=discord.AllowedMentions(everyone=True)
                         )
@@ -495,6 +495,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
