@@ -258,7 +258,7 @@ async def check_tiktok_live():
 
                     if channel:
                         await channel.send(
-                            content=f"@everyone 🔴 **{username} is LIVE!**\n{url}",
+                            content=f"@everyone 🔴 **{username} is LIVE! Come and watch the stream!**\n{url}",
                             allowed_mentions=discord.AllowedMentions(everyone=True)
                         )
 
@@ -465,6 +465,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
