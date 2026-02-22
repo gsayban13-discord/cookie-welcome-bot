@@ -5,3 +5,4 @@ pymongo
 Pillow
 requests
 beautifulsoup4
+aiohttp
