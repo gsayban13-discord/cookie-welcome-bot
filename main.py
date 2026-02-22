@@ -422,7 +422,15 @@ async def showliveannouncement(interaction: discord.Interaction):
     if thumbnail:
         embed.set_image(url=thumbnail)
 
-    await interaction.followup.send(embed=embed)
+    channel = interaction.channel
+
+    await channel.send(
+        content=f"@everyone\n\n{url}",
+        embed=embed,
+        allowed_mentions=discord.AllowedMentions(everyone=True)
+)
+
+    await interaction.followup.send("✅ Preview sent.", ephemeral=True)
 
     # ---------------- DEBUG: SHOW SETTINGS ----------------
 @tree.command(name="showsettings", description="View current bot settings",
@@ -545,6 +553,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
