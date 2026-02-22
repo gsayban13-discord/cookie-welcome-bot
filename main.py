@@ -25,18 +25,23 @@ bot.settings_col = bot.db["settings"]
 # ---------- LOAD COGS ----------
 @bot.event
 async def on_ready():
-    
+
+    print("🧹 Clearing OLD GLOBAL commands...")
+
+    # STEP 1 — Remove all global commands
     bot.tree.clear_commands(guild=None)
     await bot.tree.sync()
-    
-    await bot.tree.sync()
-    
+
+    # STEP 2 — Force sync ONLY to your guild
+    guild = discord.Object(id=1459935661116100730)
+    await bot.tree.sync(guild=guild)
+
+    print("✅ Global commands wiped successfully")
     print("====================================")
     print(f"🤖 Logged in as: {bot.user}")
     print(f"🧠 Connected to MongoDB: {bot.db.name}")
     print("🚀 Bot is fully ready!")
     print("====================================")
-
 
 async def load_cogs():
     for filename in os.listdir("./cogs"):
@@ -57,4 +62,5 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
