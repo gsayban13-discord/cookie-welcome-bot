@@ -8,7 +8,7 @@ async def create_welcome_card(member, bg_path=None):
 
     width, height = 900, 300
 
-    # Background
+    # ---------------- BACKGROUND ----------------
     if bg_path and os.path.exists(bg_path):
         bg = Image.open(bg_path).convert("RGB")
         bg = bg.resize((width, height))
@@ -30,57 +30,29 @@ async def create_welcome_card(member, bg_path=None):
 
     bg.paste(avatar, (60, 60), avatar)
 
-    # ---------------- FONTS ----------------
+    # ---------------- TEXT ----------------
+    name_text = member.name
+    count_text = f"Member #{member.guild.member_count}"
+
     try:
-        font_name = ImageFont.truetype("arial.ttf", 42)
-        font_small = ImageFont.truetype("arial.ttf", 28)
+        font_name = ImageFont.truetype("arial.ttf", 40)
+        font_small = ImageFont.truetype("arial.ttf", 24)
     except:
         font_name = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-    # ---------------- TEXT (MIDDLE AREA NEAR AVATAR) ----------------
+    # Position near avatar, middle area
+    text_x = 330
+    name_y = 130
+    count_y = 175
 
-name_text = member.name
-count_text = f"Member #{member.guild.member_count}"
+    text_color = "#3b2a2a"
 
-# Fonts
-try:
-    font_name = ImageFont.truetype("arial.ttf", 40)
-    font_small = ImageFont.truetype("arial.ttf", 24)
-except:
-    font_name = ImageFont.load_default()
-    font_small = ImageFont.load_default()
+    draw.text((text_x, name_y), name_text, fill=text_color, font=font_name)
+    draw.text((text_x, count_y), count_text, fill=text_color, font=font_small)
 
-# Measure text sizes
-name_bbox = draw.textbbox((0, 0), name_text, font=font_name)
-count_bbox = draw.textbbox((0, 0), count_text, font=font_small)
-
-name_width = name_bbox[2] - name_bbox[0]
-count_width = count_bbox[2] - count_bbox[0]
-
-# Position (middle area beside avatar)
-text_x = 330
-name_y = 130
-count_y = 175
-
-# Dark color for visibility
-text_color = "#3b2a2a"
-
-draw.text(
-    (text_x, name_y),
-    name_text,
-    fill=text_color,
-    font=font_name
-)
-
-draw.text(
-    (text_x, count_y),
-    count_text,
-    fill=text_color,
-    font=font_small
-)
-
+    # ---------------- SAVE ----------------
     path = "welcome.png"
     bg.save(path)
-    return path
 
+    return path
