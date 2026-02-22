@@ -163,20 +163,15 @@ class Settings(commands.Cog):
 
         from utils.tiktok_scraper import fetch_tiktok_page
 
+        # We still fetch thumbnail, but we IGNORE live status
         is_live, thumbnail, url = await fetch_tiktok_page(username)
 
-        if is_live:
-            embed = discord.Embed(
-                title="🔴 LIVE ON TIKTOK!",
-                description=f"**{username}** is streaming right now!",
-                color=discord.Color.red()
-            )
-        else:
-            embed = discord.Embed(
-                title="⚫ NOT LIVE",
-                description=f"**{username}** is currently offline.",
-                color=discord.Color.dark_grey()
-            )
+        # ALWAYS build LIVE embed (no offline logic)
+        embed = discord.Embed(
+            title="🔴 LIVE ON TIKTOK!",
+            description=f"**{username}** is streaming right now!",
+            color=discord.Color.red()
+        )
 
         embed.add_field(
             name="🎥 Join the stream now!",
@@ -196,4 +191,5 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
