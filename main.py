@@ -112,8 +112,8 @@ async def on_raw_message_delete(payload):
         msg = payload.cached_message
 
     # Ignore bots
-    if msg.author.bot:
-        return
+        if msg.author.bot:
+            return
 
     embed.add_field(name="Author", value=msg.author.mention)
 
@@ -495,6 +495,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
