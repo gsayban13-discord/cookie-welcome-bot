@@ -146,8 +146,54 @@ class Settings(commands.Cog):
             inline=False
         )
 
+    @app_commands.command(name="showliveannouncement", description="Preview TikTok live announcement")
+    async def showliveannouncement(self, interaction: discord.Interaction):
+
+        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        username = settings.get("tiktok_username")
+
+        if not username:
+            await interaction.response.send_message(
+                "❌ TikTok username not set.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        from utils.tiktok_scraper import fetch_tiktok_page
+
+        is_live, thumbnail, url = await fetch_tiktok_page(username)
+
+        if is_live:
+            embed = discord.Embed(
+                title="🔴 LIVE ON TIKTOK!",
+                description=f"**{username}** is streaming right now!",
+                color=discord.Color.red()
+            )
+        else:
+            embed = discord.Embed(
+                title="⚫ NOT LIVE",
+                description=f"**{username}** is currently offline.",
+                color=discord.Color.dark_grey()
+            )
+
+        embed.add_field(
+            name="🎥 Join the stream now!",
+            value=f"[Watch here]({url})",
+            inline=False
+        )
+
+        embed.set_footer(text="TikTok Live Debug Preview")
+
+        if thumbnail:
+            embed.set_image(url=thumbnail)
+
+        await interaction.followup.send(embed=embed)
+        
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
