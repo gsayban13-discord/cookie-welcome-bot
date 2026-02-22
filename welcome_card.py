@@ -36,26 +36,35 @@ async def create_welcome_card(member, bg_path=None):
     count_text = f"Member #{member.guild.member_count}"
 
     try:
-        font_name = ImageFont.truetype("arial.ttf", 40)
-        font_small = ImageFont.truetype("arial.ttf", 24)
+        font_name = ImageFont.truetype("arial.ttf", 50)   # bigger
+        font_small = ImageFont.truetype("arial.ttf", 28)
     except:
         font_name = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
-    # Position near avatar, middle area
     text_x = 330
-    name_y = 130
-    count_y = 175
+    name_y = 120
+    count_y = 180
 
-    text_color = "#3b2a2a"
+    main_color = "#3b2a2a"
+    outline_color = "white"
 
-    draw.text((text_x, name_y), name_text, fill=text_color, font=font_name)
-    draw.text((text_x, count_y), count_text, fill=text_color, font=font_small)
+    def draw_text_with_outline(draw, pos, text, font, fill, outline):
+        x, y = pos
+        for dx in (-2, -1, 0, 1, 2):
+            for dy in (-2, -1, 0, 1, 2):
+                if dx != 0 or dy != 0:
+                    draw.text((x+dx, y+dy), text, font=font, fill=outline)
+        draw.text((x, y), text, font=font, fill=fill)
+
+    draw_text_with_outline(draw, (text_x, name_y), name_text, font_name, main_color, outline_color)
+    draw_text_with_outline(draw, (text_x, count_y), count_text, font_small, main_color, outline_color)
 
     # ---------------- SAVE ----------------
     path = "welcome.png"
     bg.save(path)
 
     return path
+
 
 
