@@ -367,6 +367,16 @@ async def showliveannouncement(interaction: discord.Interaction):
         )
         return
 
+    await interaction.response.defer()
+
+    url = f"https://www.tiktok.com/@{username}/live"
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    response = requests.get(url, headers=headers)
+    html = response.text
+
+    thumbnail = get_tiktok_thumbnail(html)
+
     embed = discord.Embed(
         title="🔴 LIVE ON TIKTOK!",
         description=f"**{username}** is streaming right now!",
@@ -375,14 +385,17 @@ async def showliveannouncement(interaction: discord.Interaction):
 
     embed.add_field(
         name="🎥 Watch the Stream",
-        value=f"[Click here to join](https://www.tiktok.com/@{username}/live)",
+        value=f"[Click here to join]({url})",
         inline=False
     )
 
     embed.set_footer(text="TikTok Live Notification")
 
-    await interaction.response.send_message(
-        content=f"@everyone\n\nhttps://www.tiktok.com/@{username}/live",
+    if thumbnail:
+        embed.set_image(url=thumbnail)
+
+    await interaction.followup.send(
+        content="@everyone",
         embed=embed,
         allowed_mentions=discord.AllowedMentions(everyone=True)
     )
@@ -508,6 +521,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
