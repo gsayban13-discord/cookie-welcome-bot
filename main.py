@@ -64,7 +64,6 @@ async def on_member_join(member):
 
     channel_id = settings.get("welcome_channel")
     role_id = settings.get("auto_role")
-    bg_path = settings.get("background")
 
     if role_id:
         role = member.guild.get_role(role_id)
@@ -74,7 +73,7 @@ async def on_member_join(member):
     if channel_id:
         channel = member.guild.get_channel(channel_id)
         if channel:
-            card = await create_welcome_card(member, bg_path)
+            card = await create_welcome_card(member)
             message = random.choice(AI_MESSAGES).format(user=member.mention)
 
             await channel.send(
@@ -284,15 +283,6 @@ async def setrole(interaction: discord.Interaction, role: discord.Role):
     await update_settings(interaction.guild.id, {"auto_role": role.id})
     await interaction.response.send_message("✅ Role set!", ephemeral=True)
 
-@tree.command(name="setbackground", description="Upload a custom background for welcome cards", guild=discord.Object(id=GUILD_ID))
-async def setbackground(interaction: discord.Interaction, image: discord.Attachment):
-    path = f"backgrounds/{interaction.guild.id}.png"
-    os.makedirs("backgrounds", exist_ok=True)
-    await image.save(path)
-
-    await update_settings(interaction.guild.id, {"background": path})
-    await interaction.response.send_message("✅ Background saved!", ephemeral=True)
-
 @tree.command(name="setlogchannel", description="Set the channel where deleted/edited messages will be logged", guild=discord.Object(id=GUILD_ID))
 async def setlogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
     await update_settings(interaction.guild.id, {"log_channel": channel.id, "logger_enabled": 1})
@@ -475,6 +465,7 @@ async def togglevoicevip(interaction: discord.Interaction):
     )
 
 bot.run(TOKEN)
+
 
 
 
