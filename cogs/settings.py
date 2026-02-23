@@ -10,6 +10,31 @@ class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.command(name="deletebirthday", description="Delete a user's birthday")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def deletebirthday(self, interaction: discord.Interaction, user: discord.Member):
+
+    result = await self.bot.db.birthdays.delete_one(
+        {"guild_id": interaction.guild.id, "user_id": user.id}
+    )
+
+    if result.deleted_count == 0:
+        await interaction.response.send_message(
+            "❌ No birthday found for that user.",
+            ephemeral=True
+        )
+        return
+
+    # Update the birthday list embed
+    birthday_cog = self.bot.get_cog("Birthday")
+    if birthday_cog:
+        await birthday_cog.update_birthday_list(interaction.guild)
+
+    await interaction.response.send_message(
+        f"🗑️ Birthday deleted for {user.mention}.",
+        ephemeral=True
+    )
+
     @app_commands.command(name="setbirthdaychannel", description="Set birthday channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setbirthdaychannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -224,4 +249,5 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
