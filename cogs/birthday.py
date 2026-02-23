@@ -44,9 +44,19 @@ class Birthday(commands.Cog):
         except:
             return  # ignore invalid messages
 
+        # =============================
+        # NEW FEATURE: HANDLE MENTIONS
+        # =============================
+
+        target_user = message.author
+
+        # If message contains a mention, save for mentioned user
+        if message.mentions:
+            target_user = message.mentions[0]
+
         # Save birthday
         await self.bot.db.birthdays.update_one(
-            {"guild_id": message.guild.id, "user_id": message.author.id},
+            {"guild_id": message.guild.id, "user_id": target_user.id},
             {"$set": {
                 "month": month,
                 "day": day,
@@ -114,7 +124,6 @@ class Birthday(commands.Cog):
                 await msg.edit(embed=embed)
                 return
 
-        # Otherwise send new embed
         await channel.send(embed=embed)
 
     # =============================
