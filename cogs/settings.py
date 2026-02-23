@@ -13,9 +13,9 @@ class Settings(commands.Cog):
     @app_commands.command(name="deletebirthday", description="Delete a user's birthday")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def deletebirthday(self, interaction: discord.Interaction, user: discord.Member):
-
-    result = await self.bot.db.birthdays.delete_one(
-        {"guild_id": interaction.guild.id, "user_id": user.id}
+        
+        result = await self.bot.db.birthdays.delete_one(
+            {"guild_id": interaction.guild.id, "user_id": user.id}
     )
 
     if result.deleted_count == 0:
@@ -249,5 +249,6 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
 
