@@ -139,7 +139,7 @@ class Birthday(commands.Cog):
     # =============================
     # DAILY BIRTHDAY CHECK TASK
     # =============================
-    @tasks.loop(hours=24)
+    @tasks.loop(seconds=30)
     async def check_birthdays(self):
 
         await self.bot.wait_until_ready()
