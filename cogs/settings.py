@@ -58,6 +58,67 @@ class Settings(commands.Cog):
             ephemeral=True
         )
 
+    # ⭐ NEW COMMAND — TEST BIRTHDAY
+    @app_commands.command(name="testbirthday", description="Test birthday greeting for a user")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def testbirthday(self, interaction: discord.Interaction, user: discord.Member):
+
+        settings = await self.bot.settings_col.find_one(
+            {"guild_id": interaction.guild.id}
+        ) or {}
+
+        channel_id = settings.get("birthday_channel")
+        role_id = settings.get("birthday_role")
+
+        if not channel_id:
+            await interaction.response.send_message(
+                "❌ Birthday channel not set.",
+                ephemeral=True
+            )
+            return
+
+        channel = interaction.guild.get_channel(channel_id)
+        role = interaction.guild.get_role(role_id) if role_id else None
+
+        entry = await self.bot.db.birthdays.find_one(
+            {"guild_id": interaction.guild.id, "user_id": user.id}
+        )
+
+        if not entry:
+            await interaction.response.send_message(
+                "❌ That user has no saved birthday.",
+                ephemeral=True
+            )
+            return
+
+        from datetime import datetime, timedelta, timezone
+        PH_TZ = timezone(timedelta(hours=8))
+        today = datetime.now(PH_TZ)
+
+        age_msg = ""
+        if entry.get("year"):
+            age = today.year - entry["year"]
+            age_msg = f"You are now **{age}** years old! 🎂"
+
+        await channel.send(
+            f"🎉 Happy Birthday {user.mention}!\n{age_msg}"
+        )
+
+        if role:
+            await user.add_roles(role)
+
+            async def remove_later():
+                import asyncio
+                await asyncio.sleep(86400)
+                await user.remove_roles(role)
+
+            self.bot.loop.create_task(remove_later())
+
+        await interaction.response.send_message(
+            "✅ Birthday test sent!",
+            ephemeral=True
+        )
+
     # ==============================
     # 👋 WELCOME SYSTEM
     # ==============================
