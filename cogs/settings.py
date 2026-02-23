@@ -107,7 +107,7 @@ class Settings(commands.Cog):
             {"$set": {"voice_vip_cam_message": message}},
             upsert=True
         )
-    await interaction.response.send_message("✅ VIP camera message saved!", ephemeral=True)
+        await interaction.response.send_message("✅ VIP camera message saved!", ephemeral=True)
     
     @app_commands.command(name="togglevoicevip", description="Toggle VIP voice")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
@@ -213,6 +213,7 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
 
 
