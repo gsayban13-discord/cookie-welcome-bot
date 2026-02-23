@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 from dateutil import parser
 import asyncio
 
-
 # Philippines timezone (UTC+8)
 PH_TZ = timezone(timedelta(hours=8))
 
@@ -32,13 +31,14 @@ class Birthday(commands.Cog):
         if not channel_id or message.channel.id != channel_id:
             return
 
+        # Parse natural date input
         try:
             parsed = parser.parse(message.content, fuzzy=True)
 
             month = parsed.month
             day = parsed.day
 
-            # Only store year if user actually typed it
+            # Only save year if user typed one
             year = parsed.year if parsed.year != datetime.now().year else None
 
         except:
@@ -55,19 +55,14 @@ class Birthday(commands.Cog):
             upsert=True
         )
 
-        # Delete the user's input message
-    try:
-        await message.delete()
-    except:
-        pass
-    
-    # Optional small confirmation (auto disappears)
-    confirm = await message.channel.send(
-        f"🎂 Birthday saved for {message.author.mention}!",
-        delete_after=5
-    )
-    
-    await self.update_birthday_list(message.guild)
+        # Delete user's message to keep channel clean
+        try:
+            await message.delete()
+        except:
+            pass
+
+        # Update birthday list embed
+        await self.update_birthday_list(message.guild)
 
     # =============================
     # UPDATE SORTED EMBED LIST
@@ -87,7 +82,7 @@ class Birthday(commands.Cog):
         cursor = self.bot.db.birthdays.find({"guild_id": guild.id})
         data = await cursor.to_list(length=None)
 
-        # Sort by month/day
+        # Sort by calendar date
         data.sort(key=lambda x: (x["month"], x["day"]))
 
         embed = discord.Embed(
@@ -113,16 +108,17 @@ class Birthday(commands.Cog):
 
         embed.description = "\n".join(lines) if lines else "No birthdays saved."
 
-        # Find existing embed message
+        # Edit existing embed if found
         async for msg in channel.history(limit=50):
             if msg.author == self.bot.user and msg.embeds:
                 await msg.edit(embed=embed)
                 return
 
+        # Otherwise send new embed
         await channel.send(embed=embed)
 
     # =============================
-    # MIDNIGHT WAIT HELPER
+    # WAIT UNTIL PH MIDNIGHT
     # =============================
     async def wait_until_midnight(self):
         now = datetime.now(PH_TZ)
@@ -176,6 +172,7 @@ class Birthday(commands.Cog):
                         f"🎉 Happy Birthday {member.mention}!\n{age_msg}"
                     )
 
+                    # Give birthday role
                     if role:
                         await member.add_roles(role)
                         self.bot.loop.create_task(
