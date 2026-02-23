@@ -5,7 +5,7 @@ import time
 import asyncio
 
 COOLDOWN = 3600      # 1 hour cooldown between announcements
-VERIFY_DELAY = 120   # 2 minutes verification
+VERIFY_DELAY = 60   # 2 minutes verification
 
 class TikTok(commands.Cog):
 
@@ -104,4 +104,5 @@ class TikTok(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
+
 
