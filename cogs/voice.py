@@ -34,6 +34,41 @@ class VoiceVIP(commands.Cog):
                 if fallback:
                     await fallback.send(msg, delete_after=20)
 
+            # ==============================
+        # VIP CAMERA ON DETECTION
+        # ==============================
+
+        if before.channel == after.channel and after.channel is not None:
+
+            settings = await self.bot.settings_col.find_one(
+                {"guild_id": member.guild.id}
+            ) or {}
+
+            if not settings.get("voice_vip_enabled"):
+                return
+
+            if member.id != settings.get("voice_vip_user"):
+                return
+
+            # Detect camera turned ON
+            if not before.self_video and after.self_video:
+
+                msg = settings.get(
+                    "voice_vip_cam_message",
+                    "📸 {user} turned on the camera!"
+                )
+
+                msg = msg.replace("{user}", member.mention)
+                msg = msg.replace("{channel}", after.channel.name)
+
+                try:
+                    await after.channel.send(msg, delete_after=20)
+                except:
+                    fallback = member.guild.get_channel(settings.get("log_channel"))
+                    if fallback:
+                        await fallback.send(msg, delete_after=20)
+
 
 async def setup(bot):
     await bot.add_cog(VoiceVIP(bot))
+
