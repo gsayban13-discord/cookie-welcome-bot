@@ -18,7 +18,7 @@ class TikTok(commands.Cog):
     def cog_unload(self):
         self.check_tiktok.cancel()
 
-    @tasks.loop(minutes=3)
+    @tasks.loop(minutes=1)
     async def check_tiktok(self):
         settings_col = self.bot.settings_col
 
@@ -104,3 +104,4 @@ class TikTok(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
+
