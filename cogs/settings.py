@@ -10,6 +10,27 @@ class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.command(name="setbirthdaychannel", description="Set birthday channel")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setbirthdaychannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"birthday_channel": channel.id}},
+            upsert=True
+        )
+        await interaction.response.send_message("✅ Birthday channel set!", ephemeral=True)
+
+
+    @app_commands.command(name="setbirthdayrole", description="Set birthday role")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setbirthdayrole(self, interaction: discord.Interaction, role: discord.Role):
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"birthday_role": role.id}},
+            upsert=True
+        )
+        await interaction.response.send_message("✅ Birthday role set!", ephemeral=True)
+    
     # ---------- SET WELCOME CHANNEL ----------
     @app_commands.command(name="setchannel", description="Set welcome channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
@@ -203,3 +224,4 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
