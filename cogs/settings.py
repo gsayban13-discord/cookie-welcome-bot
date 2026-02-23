@@ -10,30 +10,9 @@ class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="deletebirthday", description="Delete a user's birthday")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def deletebirthday(self, interaction: discord.Interaction, user: discord.Member):
-        
-        result = await self.bot.db.birthdays.delete_one(
-            {"guild_id": interaction.guild.id, "user_id": user.id}
-    )
-
-    if result.deleted_count == 0:
-        await interaction.response.send_message(
-            "❌ No birthday found for that user.",
-            ephemeral=True
-        )
-        return
-
-    # Update the birthday list embed
-    birthday_cog = self.bot.get_cog("Birthday")
-    if birthday_cog:
-        await birthday_cog.update_birthday_list(interaction.guild)
-
-    await interaction.response.send_message(
-        f"🗑️ Birthday deleted for {user.mention}.",
-        ephemeral=True
-    )
+    # ==============================
+    # 🎂 BIRTHDAY COMMANDS
+    # ==============================
 
     @app_commands.command(name="setbirthdaychannel", description="Set birthday channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
@@ -45,7 +24,6 @@ class Settings(commands.Cog):
         )
         await interaction.response.send_message("✅ Birthday channel set!", ephemeral=True)
 
-
     @app_commands.command(name="setbirthdayrole", description="Set birthday role")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setbirthdayrole(self, interaction: discord.Interaction, role: discord.Role):
@@ -55,8 +33,35 @@ class Settings(commands.Cog):
             upsert=True
         )
         await interaction.response.send_message("✅ Birthday role set!", ephemeral=True)
-    
-    # ---------- SET WELCOME CHANNEL ----------
+
+    @app_commands.command(name="deletebirthday", description="Delete a user's birthday")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def deletebirthday(self, interaction: discord.Interaction, user: discord.Member):
+
+        result = await self.bot.db.birthdays.delete_one(
+            {"guild_id": interaction.guild.id, "user_id": user.id}
+        )
+
+        if result.deleted_count == 0:
+            await interaction.response.send_message(
+                "❌ No birthday found for that user.",
+                ephemeral=True
+            )
+            return
+
+        birthday_cog = self.bot.get_cog("Birthday")
+        if birthday_cog:
+            await birthday_cog.update_birthday_list(interaction.guild)
+
+        await interaction.response.send_message(
+            f"🗑️ Birthday deleted for {user.mention}.",
+            ephemeral=True
+        )
+
+    # ==============================
+    # 👋 WELCOME SYSTEM
+    # ==============================
+
     @app_commands.command(name="setchannel", description="Set welcome channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -67,7 +72,6 @@ class Settings(commands.Cog):
         )
         await interaction.response.send_message("✅ Welcome channel set!", ephemeral=True)
 
-    # ---------- SET ROLE ----------
     @app_commands.command(name="setrole", description="Set auto role")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setrole(self, interaction: discord.Interaction, role: discord.Role):
@@ -78,7 +82,10 @@ class Settings(commands.Cog):
         )
         await interaction.response.send_message("✅ Role set!", ephemeral=True)
 
-    # ---------- LOGGER ----------
+    # ==============================
+    # 📝 LOGGER
+    # ==============================
+
     @app_commands.command(name="setlogchannel", description="Set logger channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setlogchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -103,7 +110,10 @@ class Settings(commands.Cog):
 
         await interaction.response.send_message("✅ Logger toggled!", ephemeral=True)
 
-    # ---------- TIKTOK ----------
+    # ==============================
+    # 🎵 TIKTOK SETTINGS
+    # ==============================
+
     @app_commands.command(name="settiktok", description="Set TikTok username")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def settiktok(self, interaction: discord.Interaction, username: str):
@@ -124,7 +134,10 @@ class Settings(commands.Cog):
         )
         await interaction.response.send_message("✅ TikTok channel set!", ephemeral=True)
 
-    # ---------- VOICE VIP ----------
+    # ==============================
+    # 🎤 VOICE VIP SETTINGS
+    # ==============================
+
     @app_commands.command(name="setvoicevip", description="Set VIP user")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setvoicevip(self, interaction: discord.Interaction, user: discord.Member):
@@ -169,7 +182,10 @@ class Settings(commands.Cog):
 
         await interaction.response.send_message("✅ Voice VIP toggled!", ephemeral=True)
 
-    # ---------- DEBUG ----------
+    # ==============================
+    # 🧪 DEBUG / PREVIEW
+    # ==============================
+
     @app_commands.command(name="showwelcomepreview", description="Preview welcome card")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def showwelcomepreview(self, interaction: discord.Interaction, user: discord.Member):
@@ -211,44 +227,6 @@ class Settings(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="showliveannouncement", description="Preview TikTok live announcement")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def showliveannouncement(self, interaction: discord.Interaction):
-
-        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
-        username = settings.get("tiktok_username")
-
-        if not username:
-            await interaction.response.send_message("❌ TikTok username not set.", ephemeral=True)
-            return
-
-        await interaction.response.defer()
-
-        from utils.tiktok_scraper import fetch_tiktok_page
-        is_live, thumbnail, url = await fetch_tiktok_page(username)
-
-        embed = discord.Embed(
-            title="🔴 LIVE ON TIKTOK!",
-            description=f"**{username}** is streaming right now!",
-            color=discord.Color.red()
-        )
-
-        embed.add_field(
-            name="🎥 Join the stream now!",
-            value=f"[Watch here]({url})",
-            inline=False
-        )
-
-        embed.set_footer(text="TikTok Live Debug Preview")
-
-        if thumbnail:
-            embed.set_image(url=thumbnail)
-
-        await interaction.followup.send(embed=embed)
-
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
-
-
-
