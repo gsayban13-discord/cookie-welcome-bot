@@ -55,9 +55,19 @@ class Birthday(commands.Cog):
             upsert=True
         )
 
-        await message.reply("🎂 Birthday saved!", delete_after=8)
-
-        await self.update_birthday_list(message.guild)
+        # Delete the user's input message
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    # Optional small confirmation (auto disappears)
+    confirm = await message.channel.send(
+        f"🎂 Birthday saved for {message.author.mention}!",
+        delete_after=5
+    )
+    
+    await self.update_birthday_list(message.guild)
 
     # =============================
     # UPDATE SORTED EMBED LIST
