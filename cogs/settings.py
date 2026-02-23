@@ -1,10 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import random
 from welcome_card import create_welcome_card
 
 GUILD_ID = 1459935661116100730
+
 
 class Settings(commands.Cog):
     def __init__(self, bot):
@@ -108,7 +108,7 @@ class Settings(commands.Cog):
             upsert=True
         )
         await interaction.response.send_message("✅ VIP camera message saved!", ephemeral=True)
-    
+
     @app_commands.command(name="togglevoicevip", description="Toggle VIP voice")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def togglevoicevip(self, interaction: discord.Interaction):
@@ -127,14 +127,10 @@ class Settings(commands.Cog):
     @app_commands.command(name="showwelcomepreview", description="Preview welcome card")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def showwelcomepreview(self, interaction: discord.Interaction, user: discord.Member):
-
         await interaction.response.defer()
-
         card = await create_welcome_card(user)
-        message = f"Preview for {user.mention}"
-
         await interaction.followup.send(
-            message,
+            f"Preview for {user.mention}",
             file=discord.File(card, "welcome.png")
         )
 
@@ -168,7 +164,7 @@ class Settings(commands.Cog):
         )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        
+
     @app_commands.command(name="showliveannouncement", description="Preview TikTok live announcement")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def showliveannouncement(self, interaction: discord.Interaction):
@@ -177,20 +173,14 @@ class Settings(commands.Cog):
         username = settings.get("tiktok_username")
 
         if not username:
-            await interaction.response.send_message(
-                "❌ TikTok username not set.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ TikTok username not set.", ephemeral=True)
             return
 
         await interaction.response.defer()
 
         from utils.tiktok_scraper import fetch_tiktok_page
-
-        # We still fetch thumbnail, but we IGNORE live status
         is_live, thumbnail, url = await fetch_tiktok_page(username)
 
-        # ALWAYS build LIVE embed (no offline logic)
         embed = discord.Embed(
             title="🔴 LIVE ON TIKTOK!",
             description=f"**{username}** is streaming right now!",
@@ -209,15 +199,7 @@ class Settings(commands.Cog):
             embed.set_image(url=thumbnail)
 
         await interaction.followup.send(embed=embed)
-        
+
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
-
-
-
-
-
-
-
-
