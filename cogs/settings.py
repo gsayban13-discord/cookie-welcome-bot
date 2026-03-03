@@ -244,6 +244,35 @@ class Settings(commands.Cog):
         await interaction.response.send_message("✅ Voice VIP toggled!", ephemeral=True)
 
     # ==============================
+    # 🎶 MUSIC SETTINGS
+    # ==============================
+
+    @app_commands.command(name="setmusicchannel", description="Set the text channel for music commands")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setmusicchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"music_channel": channel.id}},
+            upsert=True
+        )
+        await interaction.response.send_message("✅ Music channel set!", ephemeral=True)
+
+    @app_commands.command(name="togglemusic", description="Enable or disable the music feature")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def togglemusic(self, interaction: discord.Interaction):
+        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        new_val = 0 if settings.get("music_enabled") else 1
+
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"music_enabled": new_val}},
+            upsert=True
+        )
+
+        status = "enabled" if new_val else "disabled"
+        await interaction.response.send_message(f"✅ Music feature {status}!", ephemeral=True)
+
+    # ==============================
     # 🧪 DEBUG / PREVIEW
     # ==============================
 
@@ -283,6 +312,13 @@ class Settings(commands.Cog):
             name="🎵 TikTok",
             value=f"User: {settings.get('tiktok_username', 'Not set')}\n"
                   f"Channel: {settings.get('tiktok_channel', 'Not set')}",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🎶 Music",
+            value=f"Enabled: {settings.get('music_enabled', 0)}\n"
+                  f"Channel: {settings.get('music_channel', 'Not set')}",
             inline=False
         )
 
