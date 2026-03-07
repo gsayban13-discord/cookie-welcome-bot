@@ -273,6 +273,35 @@ class Settings(commands.Cog):
         await interaction.response.send_message(f"✅ Music feature {status}!", ephemeral=True)
 
     # ==============================
+    # 📊 POLL SETTINGS
+    # ==============================
+
+    @app_commands.command(name="setpollchannel", description="Set the channel where polls can be created")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setpollchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"poll_channel": channel.id}},
+            upsert=True
+        )
+        await interaction.response.send_message("✅ Poll channel set!", ephemeral=True)
+
+    @app_commands.command(name="togglepoll", description="Enable or disable the poll feature")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def togglepoll(self, interaction: discord.Interaction):
+        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        new_val = 0 if settings.get("poll_enabled") else 1
+
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"poll_enabled": new_val}},
+            upsert=True
+        )
+
+        status = "enabled" if new_val else "disabled"
+        await interaction.response.send_message(f"✅ Poll feature {status}!", ephemeral=True)
+
+    # ==============================
     # 🧪 DEBUG / PREVIEW
     # ==============================
 
@@ -319,6 +348,13 @@ class Settings(commands.Cog):
             name="🎶 Music",
             value=f"Enabled: {settings.get('music_enabled', 0)}\n"
                   f"Channel: {settings.get('music_channel', 'Not set')}",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📊 Poll",
+            value=f"Enabled: {settings.get('poll_enabled', 0)}\n"
+                  f"Channel: {settings.get('poll_channel', 'Not set')}",
             inline=False
         )
 
