@@ -1,108 +1,73 @@
 import discord
-from discord.ext import commands, tasks
-from utils.tiktok_scraper import fetch_tiktok_page
-import time
+from discord.ext import commands
+from TikTokLive import TikTokLiveClient
+from TikTokLive.events import ConnectEvent, DisconnectEvent
 import asyncio
 
-COOLDOWN = 3600      # 1 hour cooldown between announcements
-VERIFY_DELAY = 60   # 2 minutes verification
 
 class TikTok(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.check_tiktok.start()
-        self.verifying_live = {}
-        self.last_announced = {}
+        self.clients = {}
 
-    def cog_unload(self):
-        self.check_tiktok.cancel()
+    async def start_listener(self, guild_id, username, channel_id):
 
-    @tasks.loop(minutes=1)
-    async def check_tiktok(self):
-        settings_col = self.bot.settings_col
+        if username in self.clients:
+            return
 
-        async for settings in settings_col.find({"tiktok_username": {"$exists": True}}):
+        client = TikTokLiveClient(unique_id=username)
+        self.clients[username] = client
 
-            guild = self.bot.get_guild(settings["guild_id"])
+        @client.on(ConnectEvent)
+        async def on_connect(event):
+
+            guild = self.bot.get_guild(guild_id)
             if not guild:
-                continue
+                return
+
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                return
+
+            embed = discord.Embed(
+                title="🔴 LIVE ON TIKTOK!",
+                description=f"**{username}** just went LIVE!",
+                color=discord.Color.red()
+            )
+
+            embed.add_field(
+                name="🎥 Watch the stream",
+                value=f"https://www.tiktok.com/@{username}/live",
+                inline=False
+            )
+
+            await channel.send(
+                content="@everyone",
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(everyone=True)
+            )
+
+        @client.on(DisconnectEvent)
+        async def on_disconnect(event):
+            print(f"{username} stream ended.")
+
+        asyncio.create_task(client.start())
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+
+        await self.bot.wait_until_ready()
+
+        async for settings in self.bot.settings_col.find({"tiktok_username": {"$exists": True}}):
 
             username = settings["tiktok_username"]
+            guild_id = settings["guild_id"]
             channel_id = settings.get("tiktok_channel")
-            was_live = settings.get("tiktok_live", 0)
 
-            try:
-                is_live, thumbnail, url = await fetch_tiktok_page(username)
-
-                current_time = time.time()
-
-                # --- LIVE DETECTED ---
-                if is_live:
-
-                    if username in self.verifying_live:
-                        continue
-
-                    if username in self.last_announced:
-                        if current_time - self.last_announced[username] < COOLDOWN:
-                            continue
-
-                    self.verifying_live[username] = True
-
-                    await asyncio.sleep(VERIFY_DELAY)
-
-                    still_live, thumbnail, url = await fetch_tiktok_page(username)
-
-                    if still_live:
-                        channel = guild.get_channel(channel_id)
-
-                        if channel:
-                            embed = discord.Embed(
-                                title="🔴 LIVE ON TIKTOK!",
-                                description=f"**{username}** is streaming right now!",
-                                color=discord.Color.red()
-                            )
-
-                            embed.add_field(
-                                name="🎥 Join the stream now!",
-                                value=f"[Watch here]({url})",
-                                inline=False
-                            )
-
-                            if thumbnail:
-                                embed.set_image(url=thumbnail)
-
-                            await channel.send(
-                                content=f"@everyone\n\n{url}",
-                                embed=embed,
-                                allowed_mentions=discord.AllowedMentions(everyone=True)
-                            )
-
-                        await settings_col.update_one(
-                            {"guild_id": guild.id},
-                            {"$set": {"tiktok_live": 1}}
-                        )
-
-                        self.last_announced[username] = current_time
-
-                    del self.verifying_live[username]
-
-                # --- USER WENT OFFLINE ---
-                elif not is_live and was_live:
-                    await settings_col.update_one(
-                        {"guild_id": guild.id},
-                        {"$set": {"tiktok_live": 0}}
-                    )
-
-            except Exception as e:
-                print("TikTok error:", e)
-
-    @check_tiktok.before_loop
-    async def before_check(self):
-        await self.bot.wait_until_ready()
+            if username and channel_id:
+                await self.start_listener(guild_id, username, channel_id)
 
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
-
-
