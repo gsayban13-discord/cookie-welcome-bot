@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
 from TikTokLive import TikTokLiveClient
-from TikTokLive.events import ConnectEvent, DisconnectEvent
+from TikTokLive.events import ConnectEvent, DisconnectEvent, LiveEndEvent
 import asyncio
+import time
 
 
 class TikTok(commands.Cog):
@@ -10,6 +11,7 @@ class TikTok(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.clients = {}
+        self.stream_start = {}
 
     async def start_listener(self, guild_id, username, channel_id):
 
@@ -19,6 +21,9 @@ class TikTok(commands.Cog):
         client = TikTokLiveClient(unique_id=username)
         self.clients[username] = client
 
+        # =============================
+        # STREAM START
+        # =============================
         @client.on(ConnectEvent)
         async def on_connect(event):
 
@@ -30,17 +35,31 @@ class TikTok(commands.Cog):
             if not channel:
                 return
 
+            self.stream_start[username] = time.time()
+
+            room = client.room_info
+
+            title = room.get("title", "TikTok LIVE")
+            viewers = room.get("user_count", "Unknown")
+            thumbnail = room.get("cover")
+
             embed = discord.Embed(
                 title="🔴 LIVE ON TIKTOK!",
-                description=f"**{username}** just went LIVE!",
+                description=f"**{username}** is now streaming!",
                 color=discord.Color.red()
             )
 
+            embed.add_field(name="📺 Title", value=title, inline=False)
+            embed.add_field(name="👥 Viewers", value=viewers, inline=True)
+
             embed.add_field(
-                name="🎥 Watch the stream",
+                name="🎥 Watch",
                 value=f"https://www.tiktok.com/@{username}/live",
                 inline=False
             )
+
+            if thumbnail:
+                embed.set_image(url=thumbnail)
 
             await channel.send(
                 content="@everyone",
@@ -48,12 +67,51 @@ class TikTok(commands.Cog):
                 allowed_mentions=discord.AllowedMentions(everyone=True)
             )
 
+        # =============================
+        # STREAM END
+        # =============================
+        @client.on(LiveEndEvent)
+        async def on_live_end(event):
+
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                return
+
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                return
+
+            start = self.stream_start.get(username)
+
+            duration = "Unknown"
+
+            if start:
+                seconds = int(time.time() - start)
+                minutes = seconds // 60
+                duration = f"{minutes} minutes"
+
+            embed = discord.Embed(
+                title="⚫ TikTok Stream Ended",
+                description=f"**{username}** has ended the stream.",
+                color=discord.Color.dark_gray()
+            )
+
+            embed.add_field(name="⏱ Duration", value=duration)
+
+            await channel.send(embed=embed)
+
+        # =============================
+        # DISCONNECT LOG
+        # =============================
         @client.on(DisconnectEvent)
         async def on_disconnect(event):
-            print(f"{username} stream ended.")
+            print(f"{username} disconnected from TikTok Live")
 
         asyncio.create_task(client.start())
 
+    # =============================
+    # LOAD LISTENERS ON BOT READY
+    # =============================
     @commands.Cog.listener()
     async def on_ready(self):
 
