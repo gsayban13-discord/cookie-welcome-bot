@@ -50,7 +50,9 @@ class VoiceTranslate(commands.Cog):
     # AUDIO PROCESSING
     # -----------------------------
     async def process_audio(self, user, data):
-
+        
+        print("Audio received from:", user)
+        
         if not data:
             return
 
