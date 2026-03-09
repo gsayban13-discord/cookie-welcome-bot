@@ -5,7 +5,7 @@ import wave
 import numpy as np
 
 from faster_whisper import WhisperModel
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import voice_recv
 
 
@@ -15,7 +15,7 @@ class VoiceTranslate(commands.Cog):
         self.bot = bot
         self.translating = {}
         self.model = WhisperModel("tiny", compute_type="int8")
-        self.translator = Translator()
+        self.translator = GoogleTranslator(source="ja", target="en")
 
     # -----------------------------
     # START LISTENING
@@ -81,7 +81,7 @@ class VoiceTranslate(commands.Cog):
         if not text.strip():
             return
 
-        translated = self.translator.translate(text, src="ja", dest="en")
+        translated = self.translator.translate(text)
 
         for guild in self.bot.guilds:
 
@@ -100,7 +100,7 @@ class VoiceTranslate(commands.Cog):
             if channel:
                 await channel.send(
                     f"🇯🇵 **{user.display_name}:** {text}\n"
-                    f"🇺🇸 **Translation:** {translated.text}"
+                    f"🇺🇸 **Translation:** {.text}"
                 )
 
 
