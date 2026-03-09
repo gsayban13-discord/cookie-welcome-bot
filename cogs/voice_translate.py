@@ -32,6 +32,8 @@ class VoiceTranslate(commands.Cog):
         sink = voice_recv.BasicSink(self.process_audio)
         vc.listen(sink)
 
+        print("Voice listener started")
+
         self.translating[guild.id] = True
 
     # -----------------------------
