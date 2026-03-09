@@ -8,3 +8,10 @@ requests
 beautifulsoup4
 aiohttp
 TikTokLive
+
+# voice translation
+faster-whisper
+googletrans==4.0.0-rc1
+discord-ext-voice-recv
+numpy
+ffmpeg-python
