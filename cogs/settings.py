@@ -144,6 +144,69 @@ class Settings(commands.Cog):
         await interaction.response.send_message("✅ Role set!", ephemeral=True)
 
     # ==============================
+    # 🇯🇵 VOICE TRANSLATOR SETTINGS
+    # ==============================
+    
+    @app_commands.command(name="settranslatechannel", description="Set translation subtitle channel")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def settranslatechannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"translate_channel": channel.id}},
+            upsert=True
+        )
+    
+        await interaction.response.send_message("✅ Translation channel set!", ephemeral=True)
+    
+    
+    @app_commands.command(name="starttranslate", description="Start Japanese voice translation")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def starttranslate(self, interaction: discord.Interaction):
+    
+        if not interaction.user.voice:
+            await interaction.response.send_message(
+                "❌ Join a voice channel first.", ephemeral=True
+            )
+            return
+    
+        cog = self.bot.get_cog("VoiceTranslate")
+    
+        if not cog:
+            await interaction.response.send_message(
+                "❌ Translator cog not loaded.", ephemeral=True
+            )
+            return
+    
+        await cog.start_translation(
+            interaction.guild,
+            interaction.user.voice.channel
+        )
+    
+        await interaction.response.send_message(
+            "🎧 Voice translator started!"
+        )
+    
+    
+    @app_commands.command(name="stoptranslate", description="Stop Japanese translation")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def stoptranslate(self, interaction: discord.Interaction):
+    
+        cog = self.bot.get_cog("VoiceTranslate")
+    
+        if cog:
+            await cog.stop_translation(interaction.guild)
+    
+        await interaction.response.send_message(
+            "🛑 Voice translator stopped."
+        )
+
+
+
+
+
+    
+    # ==============================
     # 📝 LOGGER
     # ==============================
 
@@ -363,3 +426,4 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
