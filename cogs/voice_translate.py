@@ -6,7 +6,7 @@ import numpy as np
 
 from faster_whisper import WhisperModel
 from deep_translator import GoogleTranslator
-import voice_recv
+from discord.ext import voice_recv
 
 
 class VoiceTranslate(commands.Cog):
