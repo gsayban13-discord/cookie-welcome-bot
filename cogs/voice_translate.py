@@ -100,7 +100,7 @@ class VoiceTranslate(commands.Cog):
             if channel:
                 await channel.send(
                     f"🇯🇵 **{user.display_name}:** {text}\n"
-                    f"🇺🇸 **Translation:** {.text}"
+                    f"🇺🇸 **Translation:** {translated}"
                 )
 
 
