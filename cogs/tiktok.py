@@ -37,7 +37,7 @@ class TikTok(commands.Cog):
 
             self.stream_start[username] = time.time()
 
-            room = client.room_info
+            room = client.room_info or {}
 
             title = room.get("title", "TikTok LIVE")
             viewers = room.get("user_count", "Unknown")
@@ -129,3 +129,4 @@ class TikTok(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
+
