@@ -58,7 +58,7 @@ class VoiceTranslate(commands.Cog):
 
         pcm = np.frombuffer(data.pcm, dtype=np.int16)
 
-        if len(pcm) < 32000:
+        if len(pcm) < 8000:
             return
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
