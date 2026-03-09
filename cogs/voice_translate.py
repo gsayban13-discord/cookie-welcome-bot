@@ -14,7 +14,7 @@ class VoiceTranslate(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.translating = {}
-        self.model = WhisperModel("base", compute_type="int8")
+        self.model = WhisperModel("tiny", compute_type="int8")
         self.translator = Translator()
 
     # -----------------------------
