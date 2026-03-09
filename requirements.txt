@@ -11,7 +11,7 @@ TikTokLive==6.6.5
 
 # voice translation
 faster-whisper
-googletrans==4.0.0-rc1
+deep-translator
 discord-ext-voice-recv
 numpy
 ffmpeg-python
