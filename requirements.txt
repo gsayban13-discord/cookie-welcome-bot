@@ -15,3 +15,4 @@ deep-translator
 discord-ext-voice-recv
 numpy
 ffmpeg-python
+PyNaCl
