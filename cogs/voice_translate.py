@@ -72,6 +72,8 @@ class VoiceTranslate(commands.Cog):
     # -----------------------------
     def process_audio(self, user, data):
 
+        print("AUDIO RECEIVED")
+
         if not data or not data.pcm:
             return
 
