@@ -37,8 +37,11 @@ class VoiceTranslate(commands.Cog):
         if vc:
             await vc.disconnect()
 
-        vc = await voice_channel.connect(
-            cls=voice_recv.VoiceRecvClient,
+        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+
+        # force undeafen after joining
+        await vc.guild.change_voice_state(
+            channel=voice_channel,
             self_deaf=False,
             self_mute=False
         )
