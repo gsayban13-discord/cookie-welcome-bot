@@ -27,7 +27,7 @@ class VoiceTranslate(commands.Cog):
         if vc:
             await vc.disconnect()
 
-        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient, self_deaf=False)
 
         sink = voice_recv.BasicSink(self.process_audio)
         vc.listen(sink)
