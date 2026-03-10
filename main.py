@@ -1,5 +1,4 @@
 import discord
-import discord.opus
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
@@ -59,6 +58,7 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
 
 
