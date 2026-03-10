@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "gcc"]
+nixPkgs = ["ffmpeg", "gcc", "libopus"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
