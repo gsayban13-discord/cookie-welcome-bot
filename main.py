@@ -1,8 +1,12 @@
 import discord
+import discord.opus
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
+
+if not discord.opus.is_loaded():
+    discord.opus.load_opus("libopus.so")
 
 load_dotenv()
 
@@ -58,6 +62,7 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
 
 
