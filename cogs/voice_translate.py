@@ -6,13 +6,14 @@ import asyncio
 import numpy as np
 import tempfile
 import wave
-import time
+import queue
+import threading
 
 from faster_whisper import WhisperModel
 from deep_translator import GoogleTranslator
 
 
-BUFFER_SECONDS = 2.5
+BUFFER_SECONDS = 2
 SAMPLE_RATE = 48000
 
 
@@ -21,9 +22,9 @@ class VoiceTranslate(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        self.translating = {}
-        self.buffers = {}
-        self.processing = {}
+        self.active = {}
+        self.audio_buffers = {}
+        self.jobs = queue.Queue()
 
         self.model = WhisperModel(
             "tiny",
@@ -33,21 +34,24 @@ class VoiceTranslate(commands.Cog):
 
         self.translator = GoogleTranslator(source="auto", target="en")
 
+        worker = threading.Thread(target=self.worker_loop, daemon=True)
+        worker.start()
+
     # -----------------------
-    # START TRANSLATION
+    # START
     # -----------------------
 
-    async def start_translation(self, guild, voice_channel):
+    async def start_translation(self, guild, channel):
 
         vc = guild.voice_client
 
         if vc:
             await vc.disconnect()
 
-        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+        vc = await channel.connect(cls=voice_recv.VoiceRecvClient)
 
         await vc.guild.change_voice_state(
-            channel=voice_channel,
+            channel=channel,
             self_deaf=False,
             self_mute=False
         )
@@ -55,11 +59,10 @@ class VoiceTranslate(commands.Cog):
         sink = voice_recv.BasicSink(self.process_audio)
         vc.listen(sink)
 
-        self.translating[guild.id] = True
-        self.buffers[guild.id] = bytearray()
-        self.processing[guild.id] = False
+        self.active[guild.id] = True
+        self.audio_buffers[guild.id] = bytearray()
 
-        print(f"[Voice] Listener started in {guild.name}")
+        print(f"[Voice] Listening in {guild.name}")
 
     # -----------------------
     # STOP
@@ -72,12 +75,11 @@ class VoiceTranslate(commands.Cog):
         if vc:
             await vc.disconnect()
 
-        self.translating.pop(guild.id, None)
-        self.buffers.pop(guild.id, None)
-        self.processing.pop(guild.id, None)
+        self.active.pop(guild.id, None)
+        self.audio_buffers.pop(guild.id, None)
 
     # -----------------------
-    # AUDIO RECEIVE
+    # RECEIVE AUDIO
     # -----------------------
 
     def process_audio(self, user, data):
@@ -87,10 +89,10 @@ class VoiceTranslate(commands.Cog):
 
         guild = user.guild
 
-        if guild.id not in self.translating:
+        if guild.id not in self.active:
             return
 
-        buffer = self.buffers.setdefault(guild.id, bytearray())
+        buffer = self.audio_buffers.setdefault(guild.id, bytearray())
         buffer.extend(data.pcm)
 
         required = int(SAMPLE_RATE * 2 * BUFFER_SECONDS)
@@ -98,17 +100,25 @@ class VoiceTranslate(commands.Cog):
         if len(buffer) < required:
             return
 
-        if self.processing[guild.id]:
-            return
+        pcm = bytes(buffer)
+        self.audio_buffers[guild.id] = bytearray()
 
-        pcm_data = bytes(buffer)
-        self.buffers[guild.id] = bytearray()
-        self.processing[guild.id] = True
+        self.jobs.put((user, pcm))
 
-        asyncio.run_coroutine_threadsafe(
-            self.transcribe(user, pcm_data),
-            self.bot.loop
-        )
+    # -----------------------
+    # WORKER
+    # -----------------------
+
+    def worker_loop(self):
+
+        while True:
+
+            user, pcm = self.jobs.get()
+
+            try:
+                asyncio.run(self.transcribe(user, pcm))
+            except Exception as e:
+                print("Voice worker error:", e)
 
     # -----------------------
     # TRANSCRIBE
@@ -116,58 +126,53 @@ class VoiceTranslate(commands.Cog):
 
     async def transcribe(self, user, pcm_data):
 
-        try:
+        pcm = np.frombuffer(pcm_data, dtype=np.int16)
 
-            pcm = np.frombuffer(pcm_data, dtype=np.int16)
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            wf = wave.open(f.name, "wb")
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(SAMPLE_RATE)
+            wf.writeframes(pcm.tobytes())
+            wf.close()
 
-                wf = wave.open(f.name, "wb")
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(SAMPLE_RATE)
-                wf.writeframes(pcm.tobytes())
-                wf.close()
-
-                segments, info = self.model.transcribe(
-                    f.name,
-                    beam_size=3
-                )
-
-            text = "".join(s.text for s in segments).strip()
-
-            if not text:
-                return
-
-            try:
-                translated = self.translator.translate(text)
-            except:
-                translated = "Translation failed"
-
-            guild = user.guild
-
-            settings = await self.bot.settings_col.find_one(
-                {"guild_id": guild.id}
-            ) or {}
-
-            channel_id = settings.get("translate_channel")
-
-            if channel_id:
-                channel = guild.get_channel(channel_id)
-            else:
-                channel = guild.system_channel
-
-            if not channel:
-                return
-
-            await channel.send(
-                f"🎤 **{user.display_name}**\n"
-                f"🗣 {text}\n"
-                f"🌎 {translated}"
+            segments, _ = self.model.transcribe(
+                f.name,
+                beam_size=3
             )
 
-        finally:
-            self.processing[user.guild.id] = False
+        text = "".join(s.text for s in segments).strip()
+
+        if not text:
+            return
+
+        try:
+            translated = self.translator.translate(text)
+        except:
+            translated = "Translation failed"
+
+        guild = user.guild
+
+        settings = await self.bot.settings_col.find_one(
+            {"guild_id": guild.id}
+        ) or {}
+
+        channel_id = settings.get("translate_channel")
+
+        if channel_id:
+            channel = guild.get_channel(channel_id)
+        else:
+            channel = guild.system_channel
+
+        if not channel:
+            return
+
+        await channel.send(
+            f"🎤 **{user.display_name}**\n"
+            f"🗣 {text}\n"
+            f"🌎 {translated}"
+        )
 
 
 async def setup(bot):
