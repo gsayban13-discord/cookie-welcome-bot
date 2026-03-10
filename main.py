@@ -5,12 +5,6 @@ from dotenv import load_dotenv
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-if not discord.opus.is_loaded():
-    try:
-        discord.opus.load_opus("libopus.so.0")
-    except OSError:
-        print("⚠️ Opus not found, voice receive may not work")
-
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
@@ -65,6 +59,7 @@ async def main():
 import asyncio
 
 asyncio.run(main())
+
 
 
 
