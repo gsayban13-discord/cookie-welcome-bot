@@ -421,6 +421,19 @@ class Settings(commands.Cog):
             inline=False
         )
 
+        patch_games = settings.get("patch_games", [])
+
+        if patch_games:
+            games = "\n".join(g["name"] for g in patch_games)
+        else:
+            games = "None"
+        
+        embed.add_field(
+            name="🆕 Patch Tracking",
+            value=f"Channel: {settings.get('patch_channel','Not set')}\nGames:\n{games}",
+            inline=False
+        )
+        
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -487,6 +500,7 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
 
 
