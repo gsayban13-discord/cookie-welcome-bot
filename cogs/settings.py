@@ -446,7 +446,7 @@ class Settings(commands.Cog):
         await self.bot.settings_col.update_one(
             {"guild_id": interaction.guild.id},
             {
-                "$push": {
+                "$addToSet": {
                     "patch_games": {
                         "type": "league",
                         "name": "League of Legends",
@@ -469,7 +469,7 @@ class Settings(commands.Cog):
         await self.bot.settings_col.update_one(
             {"guild_id": interaction.guild.id},
             {
-                "$push": {
+                "$addToSet": {
                     "patch_games": {
                         "type": "valorant",
                         "name": "Valorant",
@@ -487,5 +487,6 @@ class Settings(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
 
