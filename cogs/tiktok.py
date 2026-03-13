@@ -7,7 +7,12 @@ import time
 
 
 class TikTok(commands.Cog):
-
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.clients = {}
+        self.stream_start = {}
+        
     async def safe_start(self, client, username):
         from TikTokLive.client.errors import UserOfflineError
     
@@ -17,11 +22,6 @@ class TikTok(commands.Cog):
             print(f"TikTok user @{username} is offline. Waiting...")
         except Exception as e:
             print(f"TikTok error for {username}: {e}")
-        
-        def __init__(self, bot):
-            self.bot = bot
-            self.clients = {}
-            self.stream_start = {}
 
     async def start_listener(self, guild_id, username, channel_id):
 
@@ -139,5 +139,6 @@ class TikTok(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TikTok(bot))
+
 
 
