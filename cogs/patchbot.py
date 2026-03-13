@@ -138,18 +138,20 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        paragraphs = soup.find_all("p")
-
         summary = []
+
+        # NEW: prioritize article content first
+        paragraphs = soup.select("article p")
+
+        # fallback if article selector fails
+        if not paragraphs:
+            paragraphs = soup.find_all("p")
 
         for p in paragraphs:
 
             text = p.get_text(" ", strip=True)
 
-            if len(text) < 80:
-                continue
-
-            if any(x in text.lower() for x in ["attack damage", "cooldown", "mana", "health", "%"]):
+            if len(text) < 60:
                 continue
 
             summary.append(text)
@@ -160,7 +162,9 @@ class PatchBot(commands.Cog):
         if not summary:
             return None
 
-        return "\n\n".join(summary)[:800]
+        formatted = "\n• " + "\n• ".join(summary)
+
+        return formatted[:800]
 
     # -----------------------------
     # PATCH BANNER IMAGE
@@ -176,7 +180,11 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        images = soup.find_all("img")
+        # NEW: prioritize images inside article
+        images = soup.select("article img")
+
+        if not images:
+            images = soup.find_all("img")
 
         for img in images:
 
