@@ -424,6 +424,68 @@ class Settings(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+    @app_commands.command(name="setpatchchannel", description="Set patch alert channel")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setpatchchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"patch_channel": channel.id}},
+            upsert=True
+        )
+    
+        await interaction.response.send_message(
+            "✅ Patch channel set!",
+            ephemeral=True
+        )
+
+    @app_commands.command(name="addleaguepatch", description="Track League patches")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def addleaguepatch(self, interaction: discord.Interaction):
+    
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {
+                "$push": {
+                    "patch_games": {
+                        "type": "league",
+                        "name": "League of Legends",
+                        "last_patch": None
+                    }
+                }
+            },
+            upsert=True
+        )
+    
+        await interaction.response.send_message(
+            "🧠 League patch tracking enabled!",
+            ephemeral=True
+        )
+
+    @app_commands.command(name="addvalorantpatch", description="Track Valorant patches")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def addvalorantpatch(self, interaction: discord.Interaction):
+    
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {
+                "$push": {
+                    "patch_games": {
+                        "type": "valorant",
+                        "name": "Valorant",
+                        "last_patch": None
+                    }
+                }
+            },
+            upsert=True
+        )
+    
+        await interaction.response.send_message(
+            "🔫 Valorant patch tracking enabled!",
+            ephemeral=True
+        )
+
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
