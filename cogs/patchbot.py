@@ -31,7 +31,7 @@ class PatchBot(commands.Cog):
 
     def extract_patch_number(self, title):
 
-        match = re.search(r"\d+\.\d+", title)
+        match = re.search(r"\b\d{1,2}\.\d{1,2}\b", title)
 
         if match:
             return match.group(0)
@@ -112,8 +112,11 @@ class PatchBot(commands.Cog):
 
             clean_title = article.get_text(" ", strip=True)
 
+            # remove tracking parameters
+            clean_id = link.split("?")[0]
+
             return {
-                "id": link,
+                "id": clean_id,
                 "title": clean_title,
                 "url": link
             }
@@ -121,7 +124,7 @@ class PatchBot(commands.Cog):
         return None
 
     # -----------------------------
-    # AI STYLE PATCH SUMMARY
+    # PATCH SUMMARY
     # -----------------------------
 
     async def extract_patch_summary(self, url):
@@ -134,47 +137,42 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        paragraphs = soup.find_all("p")
-
-        text_blocks = []
-
-        for p in paragraphs:
-
-            text = p.get_text(" ", strip=True)
-
-            if len(text) < 40:
-                continue
-
-            text_blocks.append(text)
-
-        if not text_blocks:
-            return None
-
-        keywords = [
-            "update",
-            "improve",
-            "fix",
-            "adjust",
-            "balance",
-            "change",
-            "bug",
-            "new"
-        ]
-
         summary = []
 
-        for line in text_blocks:
+        # Try bullet lists first
+        bullets = soup.find_all("li")
 
-            lower = line.lower()
+        for li in bullets:
 
-            if any(word in lower for word in keywords):
-                summary.append(line)
+            text = li.get_text(" ", strip=True)
+
+            if len(text) < 20:
+                continue
+
+            summary.append(text)
 
             if len(summary) == 4:
                 break
 
+        # fallback to paragraphs
         if not summary:
-            summary = text_blocks[:3]
+
+            paragraphs = soup.find_all("p")
+
+            for p in paragraphs:
+
+                text = p.get_text(" ", strip=True)
+
+                if len(text) < 40:
+                    continue
+
+                summary.append(text)
+
+                if len(summary) == 3:
+                    break
+
+        if not summary:
+            return None
 
         formatted = "\n• " + "\n• ".join(summary)
 
@@ -206,7 +204,7 @@ class PatchBot(commands.Cog):
             if any(x in src.lower() for x in ["icon", "logo", "sprite"]):
                 continue
 
-            if "1920" in src or "1080" in src or "header" in src or "patch" in src:
+            if any(x in src.lower() for x in ["1920", "1080", "header", "patch", "banner"]):
 
                 if src.startswith("//"):
                     src = "https:" + src
@@ -223,15 +221,13 @@ class PatchBot(commands.Cog):
         return None
 
     # -----------------------------
-    # MAIN LOOP (FAST DETECTION)
+    # MAIN LOOP
     # -----------------------------
 
-    @tasks.loop(seconds=20)
+    @tasks.loop(seconds=25)
     async def check_patches(self):
 
         await self.bot.wait_until_ready()
-
-        await asyncio.sleep(2)
 
         async for settings in self.bot.settings_col.find({"patch_games": {"$exists": True}}):
 
@@ -267,12 +263,9 @@ class PatchBot(commands.Cog):
                     continue
 
                 if game["type"] in ["valorant", "league"]:
-
                     summary = await self.extract_patch_summary(patch["url"])
                     image = await self.extract_patch_image(patch["url"])
-
                 else:
-
                     summary = patch.get("summary")
 
                 await self.bot.settings_col.update_one(
@@ -290,7 +283,7 @@ class PatchBot(commands.Cog):
                 patch_number = self.extract_patch_number(patch["title"])
 
                 if patch_number:
-                    title = f"🆕 {game['name']} Patch {patch_number}"
+                    title = f"🆕 Patch {patch_number}"
                 else:
                     title = patch["title"]
 
@@ -311,14 +304,14 @@ class PatchBot(commands.Cog):
 
                     embed.set_author(
                         name="Valorant",
-                        icon_url="https://seeklogo.com/images/V/valorant-logo-FAB2CA0E55-seeklogo.com.png"
+                        icon_url="https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
                     )
 
                 elif game["type"] == "league":
 
                     embed.set_author(
                         name="League of Legends",
-                        icon_url="https://seeklogo.com/images/L/league-of-legends-logo-4E20C0E6B6-seeklogo.com.png"
+                        icon_url="https://upload.wikimedia.org/wikipedia/commons/7/77/League_of_Legends_logo.svg"
                     )
 
                 if summary:
