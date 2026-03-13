@@ -25,10 +25,6 @@ class PatchBot(commands.Cog):
         self.check_patches.cancel()
         asyncio.create_task(self.session.close())
 
-    @check_patches.before_loop
-    async def before_check(self):
-        await self.bot.wait_until_ready()
-
     # -----------------------------
     # PATCH NUMBER EXTRACTOR
     # -----------------------------
@@ -192,10 +188,11 @@ class PatchBot(commands.Cog):
             if any(x in src.lower() for x in ["icon", "logo", "sprite"]):
                 continue
 
-            if src.startswith("//"):
-                src = "https:" + src
-
             if any(x in src.lower() for x in ["1920", "1080", "header", "patch", "banner"]):
+
+                if src.startswith("//"):
+                    src = "https:" + src
+
                 return src
 
         return None
@@ -301,6 +298,10 @@ class PatchBot(commands.Cog):
                 await channel.send(embed=embed)
 
                 await asyncio.sleep(2)
+
+    @check_patches.before_loop
+    async def before_check(self):
+        await self.bot.wait_until_ready()
 
 
 async def setup(bot):
