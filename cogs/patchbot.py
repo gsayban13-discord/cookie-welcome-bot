@@ -25,6 +25,10 @@ class PatchBot(commands.Cog):
         self.check_patches.cancel()
         asyncio.create_task(self.session.close())
 
+    @check_patches.before_loop
+    async def before_check(self):
+        await self.bot.wait_until_ready()
+
     # -----------------------------
     # PATCH NUMBER EXTRACTOR
     # -----------------------------
@@ -59,11 +63,13 @@ class PatchBot(commands.Cog):
 
         item = news[0]
 
+        clean_summary = BeautifulSoup(item.get("contents", ""), "html.parser").get_text()
+
         return {
             "id": item["gid"],
             "title": item["title"],
             "url": item["url"],
-            "summary": item.get("contents", "")[:400]
+            "summary": clean_summary[:400]
         }
 
     # -----------------------------
@@ -112,7 +118,6 @@ class PatchBot(commands.Cog):
 
             clean_title = article.get_text(" ", strip=True)
 
-            # remove tracking parameters
             clean_id = link.split("?")[0]
 
             return {
@@ -137,44 +142,29 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
+        paragraphs = soup.find_all("p")
+
         summary = []
 
-        bullets = soup.find_all("li")
+        for p in paragraphs:
 
-        for li in bullets:
+            text = p.get_text(" ", strip=True)
 
-            text = li.get_text(" ", strip=True)
+            if len(text) < 80:
+                continue
 
-            if len(text) < 20:
+            if any(x in text.lower() for x in ["attack damage", "cooldown", "mana", "health", "%"]):
                 continue
 
             summary.append(text)
 
-            if len(summary) == 4:
+            if len(summary) == 3:
                 break
-
-        if not summary:
-
-            paragraphs = soup.find_all("p")
-
-            for p in paragraphs:
-
-                text = p.get_text(" ", strip=True)
-
-                if len(text) < 40:
-                    continue
-
-                summary.append(text)
-
-                if len(summary) == 3:
-                    break
 
         if not summary:
             return None
 
-        formatted = "\n• " + "\n• ".join(summary)
-
-        return formatted[:800]
+        return "\n\n".join(summary)[:800]
 
     # -----------------------------
     # PATCH BANNER IMAGE
@@ -194,7 +184,7 @@ class PatchBot(commands.Cog):
 
         for img in images:
 
-            src = img.get("src")
+            src = img.get("src") or img.get("data-src")
 
             if not src:
                 continue
@@ -202,11 +192,10 @@ class PatchBot(commands.Cog):
             if any(x in src.lower() for x in ["icon", "logo", "sprite"]):
                 continue
 
+            if src.startswith("//"):
+                src = "https:" + src
+
             if any(x in src.lower() for x in ["1920", "1080", "header", "patch", "banner"]):
-
-                if src.startswith("//"):
-                    src = "https:" + src
-
                 return src
 
         return None
@@ -217,8 +206,6 @@ class PatchBot(commands.Cog):
 
     @tasks.loop(seconds=20)
     async def check_patches(self):
-
-        await self.bot.wait_until_ready()
 
         async for settings in self.bot.settings_col.find({"patch_games": {"$exists": True}}):
 
@@ -262,7 +249,7 @@ class PatchBot(commands.Cog):
                 await self.bot.settings_col.update_one(
                     {
                         "guild_id": guild.id,
-                        "patch_games.name": game["name"]
+                        "patch_games.type": game["type"]
                     },
                     {
                         "$set": {
@@ -294,17 +281,17 @@ class PatchBot(commands.Cog):
                 if game["type"] == "valorant":
                     embed.set_author(
                         name="Valorant",
-                        icon_url="https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
+                        icon_url="https://seeklogo.com/images/V/valorant-logo-FAB2CA0E55-seeklogo.com.png"
                     )
 
                 elif game["type"] == "league":
                     embed.set_author(
                         name="League of Legends",
-                        icon_url="https://upload.wikimedia.org/wikipedia/commons/7/77/League_of_Legends_logo.svg"
+                        icon_url="https://seeklogo.com/images/L/league-of-legends-logo-61E1F5A0E4-seeklogo.com.png"
                     )
 
                 if summary:
-                    embed.description = summary
+                    embed.description = f"**Summary**\n{summary}"
 
                 if image:
                     embed.set_image(url=image)
