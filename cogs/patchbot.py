@@ -22,6 +22,7 @@ class PatchBot(commands.Cog):
 
     def cog_unload(self):
         self.check_patches.cancel()
+        asyncio.create_task(self.session.close())
 
     # -----------------------------
     # STEAM PATCH
@@ -71,14 +72,9 @@ class PatchBot(commands.Cog):
 
             title = article.get_text(" ", strip=True).lower()
 
-            # Only allow real patch notes
-            if "patch" not in title:
+            if "patch" not in title or "notes" not in title:
                 continue
 
-            if "notes" not in title:
-                continue
-
-            # Ignore trailers/dev blogs
             bad_words = [
                 "trailer",
                 "dev",
@@ -94,13 +90,11 @@ class PatchBot(commands.Cog):
 
             link = article["href"]
 
-            if "valorant" in url:
-                if not link.startswith("http"):
-                    link = VALORANT_BASE + link
+            if "valorant" in url and not link.startswith("http"):
+                link = VALORANT_BASE + link
 
-            if "leagueoflegends" in url:
-                if not link.startswith("http"):
-                    link = LEAGUE_BASE + link
+            if "leagueoflegends" in url and not link.startswith("http"):
+                link = LEAGUE_BASE + link
 
             clean_title = article.get_text(" ", strip=True)
 
@@ -113,7 +107,7 @@ class PatchBot(commands.Cog):
         return None
 
     # -----------------------------
-    # PATCH SUMMARY SCRAPER
+    # BETTER PATCH SUMMARY
     # -----------------------------
 
     async def extract_patch_summary(self, url):
@@ -126,28 +120,85 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        paragraphs = soup.find_all("p")
-
         summary_lines = []
 
-        for p in paragraphs:
+        # PRIORITY: bullet points
+        bullets = soup.find_all("li")
 
-            text = p.get_text(" ", strip=True)
+        for li in bullets:
 
-            if len(text) < 40:
+            text = li.get_text(" ", strip=True)
+
+            if len(text) < 15:
                 continue
 
             summary_lines.append(text)
 
-            if len(summary_lines) == 3:
+            if len(summary_lines) == 4:
                 break
+
+        # fallback: paragraphs
+        if not summary_lines:
+
+            paragraphs = soup.find_all("p")
+
+            for p in paragraphs:
+
+                text = p.get_text(" ", strip=True)
+
+                if len(text) < 40:
+                    continue
+
+                summary_lines.append(text)
+
+                if len(summary_lines) == 3:
+                    break
 
         if not summary_lines:
             return None
 
         summary = "\n• " + "\n• ".join(summary_lines)
 
-        return summary[:700]
+        return summary[:800]
+
+    # -----------------------------
+    # PATCH BANNER IMAGE
+    # -----------------------------
+
+    async def extract_patch_image(self, url):
+
+        try:
+            async with self.session.get(url) as resp:
+                html = await resp.text()
+        except:
+            return None
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        images = soup.find_all("img")
+
+        for img in images:
+
+            src = img.get("src")
+
+            if not src:
+                continue
+
+            if any(x in src.lower() for x in ["icon", "logo", "sprite"]):
+                continue
+
+            if "1920" in src or "1080" in src or "header" in src or "patch" in src:
+                if src.startswith("//"):
+                    src = "https:" + src
+                return src
+
+        # fallback
+        for img in images:
+            src = img.get("src")
+            if src and src.startswith("http"):
+                return src
+
+        return None
 
     # -----------------------------
     # MAIN LOOP
@@ -155,60 +206,48 @@ class PatchBot(commands.Cog):
 
     @tasks.loop(seconds=45)
     async def check_patches(self):
-    
+
         await self.bot.wait_until_ready()
-    
+
         async for settings in self.bot.settings_col.find({"patch_games": {"$exists": True}}):
-    
+
             guild = self.bot.get_guild(settings["guild_id"])
             if not guild:
                 continue
-    
+
             channel = guild.get_channel(settings.get("patch_channel"))
-    
+
             if not channel:
                 continue
-    
+
             for game in settings["patch_games"]:
-    
+
                 patch = None
                 summary = None
-    
-                # -------------------
-                # STEAM
-                # -------------------
-    
+                image = None
+
                 if game["type"] == "steam":
                     patch = await self.fetch_steam_patch(game["appid"])
-    
-                # -------------------
-                # VALORANT
-                # -------------------
-    
+
                 elif game["type"] == "valorant":
                     patch = await self.scrape_patch_page(VALORANT_URL)
-    
-                # -------------------
-                # LEAGUE
-                # -------------------
-    
+
                 elif game["type"] == "league":
                     patch = await self.scrape_patch_page(LEAGUE_URL)
-    
+
                 if not patch:
                     continue
-    
-                # If patch already announced skip heavy scraping
+
                 if patch["id"] == game.get("last_patch"):
                     continue
-    
-                # Only now fetch summary (heavy operation)
+
+                # fetch summary + banner
                 if game["type"] in ["valorant", "league"]:
                     summary = await self.extract_patch_summary(patch["url"])
+                    image = await self.extract_patch_image(patch["url"])
                 else:
                     summary = patch.get("summary")
-    
-                # Save patch ID
+
                 await self.bot.settings_col.update_one(
                     {
                         "guild_id": guild.id,
@@ -220,37 +259,45 @@ class PatchBot(commands.Cog):
                         }
                     }
                 )
-    
+
+                # embed color
+                if game["type"] == "valorant":
+                    color = discord.Color.from_rgb(255, 70, 85)
+                elif game["type"] == "league":
+                    color = discord.Color.from_rgb(200, 155, 60)
+                else:
+                    color = discord.Color.green()
+
                 embed = discord.Embed(
-                    title="🆕 Patch Released",
-                    description=f"🎮 **{game['name']}**",
-                    color=discord.Color.green()
+                    title=patch["title"],
+                    url=patch["url"],  # clickable title
+                    color=color
                 )
-    
-                embed.add_field(
-                    name="📄 Patch",
-                    value=patch["title"],
-                    inline=False
-                )
-    
-                if summary:
-                    embed.add_field(
-                        name="📋 Patch Summary",
-                        value=summary,
-                        inline=False
+
+                # game author
+                if game["type"] == "valorant":
+                    embed.set_author(
+                        name="Valorant",
+                        icon_url="https://seeklogo.com/images/V/valorant-logo-FAB2CA0E55-seeklogo.com.png"
                     )
-    
-                embed.add_field(
-                    name="🔗 Full Patch Notes",
-                    value=f"[Read the full patch notes]({patch['url']})",
-                    inline=False
-                )
-    
+
+                elif game["type"] == "league":
+                    embed.set_author(
+                        name="League of Legends",
+                        icon_url="https://seeklogo.com/images/L/league-of-legends-logo-4E20C0E6B6-seeklogo.com.png"
+                    )
+
+                if summary:
+                    embed.description = summary
+
+                if image:
+                    embed.set_image(url=image)
+
                 embed.set_footer(text="Cookie Bot • Game Patch Tracker")
-    
+
                 await channel.send(embed=embed)
-    
-                await asyncio.sleep(2)  # safety delay between games
+
+                await asyncio.sleep(2)
 
 
 async def setup(bot):
