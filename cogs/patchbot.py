@@ -9,6 +9,9 @@ STEAM_API = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid={ap
 VALORANT_URL = "https://playvalorant.com/en-us/news/game-updates/"
 LEAGUE_URL = "https://www.leagueoflegends.com/en-us/news/game-updates/"
 
+VALORANT_BASE = "https://playvalorant.com"
+LEAGUE_BASE = "https://www.leagueoflegends.com"
+
 
 class PatchBot(commands.Cog):
 
@@ -45,11 +48,11 @@ class PatchBot(commands.Cog):
             "id": item["gid"],
             "title": item["title"],
             "url": item["url"],
-            "summary": item.get("contents", "")[:300]
+            "summary": item.get("contents", "")[:400]
         }
 
     # -----------------------------
-    # RIOT SCRAPER
+    # RIOT PATCH SCRAPER
     # -----------------------------
 
     async def scrape_patch_page(self, url):
@@ -62,62 +65,150 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        article = soup.find("a", href=True)
+        articles = soup.find_all("a", href=True)
 
-        if not article:
+        for article in articles:
+
+            title = article.get_text(" ", strip=True).lower()
+
+            # Only allow real patch notes
+            if "patch" not in title:
+                continue
+
+            if "notes" not in title:
+                continue
+
+            # Ignore trailers/dev blogs
+            bad_words = [
+                "trailer",
+                "dev",
+                "diary",
+                "cinematic",
+                "music",
+                "skins",
+                "event"
+            ]
+
+            if any(bad in title for bad in bad_words):
+                continue
+
+            link = article["href"]
+
+            if "valorant" in url:
+                if not link.startswith("http"):
+                    link = VALORANT_BASE + link
+
+            if "leagueoflegends" in url:
+                if not link.startswith("http"):
+                    link = LEAGUE_BASE + link
+
+            clean_title = article.get_text(" ", strip=True)
+
+            return {
+                "id": link,
+                "title": clean_title,
+                "url": link
+            }
+
+        return None
+
+    # -----------------------------
+    # PATCH SUMMARY SCRAPER
+    # -----------------------------
+
+    async def extract_patch_summary(self, url):
+
+        try:
+            async with self.session.get(url) as resp:
+                html = await resp.text()
+        except:
             return None
 
-        title = article.text.strip()
-        link = article["href"]
+        soup = BeautifulSoup(html, "html.parser")
 
-        if not link.startswith("http"):
-            link = "https://playvalorant.com" + link
+        paragraphs = soup.find_all("p")
 
-        return {
-            "id": link,
-            "title": title,
-            "url": link
-        }
+        summary_lines = []
+
+        for p in paragraphs:
+
+            text = p.get_text(" ", strip=True)
+
+            if len(text) < 40:
+                continue
+
+            summary_lines.append(text)
+
+            if len(summary_lines) == 3:
+                break
+
+        if not summary_lines:
+            return None
+
+        summary = "\n• " + "\n• ".join(summary_lines)
+
+        return summary[:700]
 
     # -----------------------------
-    # LOOP
+    # MAIN LOOP
     # -----------------------------
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(seconds=45)
     async def check_patches(self):
-
+    
         await self.bot.wait_until_ready()
-
+    
         async for settings in self.bot.settings_col.find({"patch_games": {"$exists": True}}):
-
+    
             guild = self.bot.get_guild(settings["guild_id"])
             if not guild:
                 continue
-
+    
             channel = guild.get_channel(settings.get("patch_channel"))
-
+    
             if not channel:
                 continue
-
+    
             for game in settings["patch_games"]:
-
+    
                 patch = None
-
+                summary = None
+    
+                # -------------------
+                # STEAM
+                # -------------------
+    
                 if game["type"] == "steam":
                     patch = await self.fetch_steam_patch(game["appid"])
-
+    
+                # -------------------
+                # VALORANT
+                # -------------------
+    
                 elif game["type"] == "valorant":
                     patch = await self.scrape_patch_page(VALORANT_URL)
-
+    
+                # -------------------
+                # LEAGUE
+                # -------------------
+    
                 elif game["type"] == "league":
                     patch = await self.scrape_patch_page(LEAGUE_URL)
-
+    
                 if not patch:
                     continue
-
+    
+                # If patch already announced skip heavy scraping
                 if patch["id"] == game.get("last_patch"):
                     continue
-
+    
+                # Only now fetch summary (heavy operation)
+                if game["type"] in ["valorant", "league"]:
+                    summary = await self.extract_patch_summary(patch["url"])
+                else:
+                    summary = patch.get("summary")
+    
+                # Save patch ID
                 await self.bot.settings_col.update_one(
                     {
                         "guild_id": guild.id,
@@ -129,28 +220,37 @@ class PatchBot(commands.Cog):
                         }
                     }
                 )
-
+    
                 embed = discord.Embed(
                     title="🆕 Patch Released",
-                    description=f"**{game['name']}**",
+                    description=f"🎮 **{game['name']}**",
                     color=discord.Color.green()
                 )
-
+    
                 embed.add_field(
-                    name="Patch Title",
+                    name="📄 Patch",
                     value=patch["title"],
                     inline=False
                 )
-
+    
+                if summary:
+                    embed.add_field(
+                        name="📋 Patch Summary",
+                        value=summary,
+                        inline=False
+                    )
+    
                 embed.add_field(
-                    name="Read Patch Notes",
-                    value=patch["url"],
+                    name="🔗 Full Patch Notes",
+                    value=f"[Read the full patch notes]({patch['url']})",
                     inline=False
                 )
-
+    
+                embed.set_footer(text="Cookie Bot • Game Patch Tracker")
+    
                 await channel.send(embed=embed)
-
-                await asyncio.sleep(1)
+    
+                await asyncio.sleep(2)  # safety delay between games
 
 
 async def setup(bot):
