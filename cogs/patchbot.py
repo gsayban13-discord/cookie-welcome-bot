@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import aiohttp
 import asyncio
+import re
 from bs4 import BeautifulSoup
 
 STEAM_API = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid={appid}&count=1"
@@ -23,6 +24,19 @@ class PatchBot(commands.Cog):
     def cog_unload(self):
         self.check_patches.cancel()
         asyncio.create_task(self.session.close())
+
+    # -----------------------------
+    # PATCH NUMBER EXTRACTOR
+    # -----------------------------
+
+    def extract_patch_number(self, title):
+
+        match = re.search(r"\d+\.\d+", title)
+
+        if match:
+            return match.group(0)
+
+        return None
 
     # -----------------------------
     # STEAM PATCH
@@ -107,7 +121,7 @@ class PatchBot(commands.Cog):
         return None
 
     # -----------------------------
-    # BETTER PATCH SUMMARY
+    # AI STYLE PATCH SUMMARY
     # -----------------------------
 
     async def extract_patch_summary(self, url):
@@ -120,46 +134,51 @@ class PatchBot(commands.Cog):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        summary_lines = []
+        paragraphs = soup.find_all("p")
 
-        # PRIORITY: bullet points
-        bullets = soup.find_all("li")
+        text_blocks = []
 
-        for li in bullets:
+        for p in paragraphs:
 
-            text = li.get_text(" ", strip=True)
+            text = p.get_text(" ", strip=True)
 
-            if len(text) < 15:
+            if len(text) < 40:
                 continue
 
-            summary_lines.append(text)
+            text_blocks.append(text)
 
-            if len(summary_lines) == 4:
-                break
-
-        # fallback: paragraphs
-        if not summary_lines:
-
-            paragraphs = soup.find_all("p")
-
-            for p in paragraphs:
-
-                text = p.get_text(" ", strip=True)
-
-                if len(text) < 40:
-                    continue
-
-                summary_lines.append(text)
-
-                if len(summary_lines) == 3:
-                    break
-
-        if not summary_lines:
+        if not text_blocks:
             return None
 
-        summary = "\n• " + "\n• ".join(summary_lines)
+        keywords = [
+            "update",
+            "improve",
+            "fix",
+            "adjust",
+            "balance",
+            "change",
+            "bug",
+            "new"
+        ]
 
-        return summary[:800]
+        summary = []
+
+        for line in text_blocks:
+
+            lower = line.lower()
+
+            if any(word in lower for word in keywords):
+                summary.append(line)
+
+            if len(summary) == 4:
+                break
+
+        if not summary:
+            summary = text_blocks[:3]
+
+        formatted = "\n• " + "\n• ".join(summary)
+
+        return formatted[:800]
 
     # -----------------------------
     # PATCH BANNER IMAGE
@@ -188,30 +207,36 @@ class PatchBot(commands.Cog):
                 continue
 
             if "1920" in src or "1080" in src or "header" in src or "patch" in src:
+
                 if src.startswith("//"):
                     src = "https:" + src
+
                 return src
 
-        # fallback
         for img in images:
+
             src = img.get("src")
+
             if src and src.startswith("http"):
                 return src
 
         return None
 
     # -----------------------------
-    # MAIN LOOP
+    # MAIN LOOP (FAST DETECTION)
     # -----------------------------
 
-    @tasks.loop(seconds=45)
+    @tasks.loop(seconds=20)
     async def check_patches(self):
 
         await self.bot.wait_until_ready()
 
+        await asyncio.sleep(2)
+
         async for settings in self.bot.settings_col.find({"patch_games": {"$exists": True}}):
 
             guild = self.bot.get_guild(settings["guild_id"])
+
             if not guild:
                 continue
 
@@ -241,11 +266,13 @@ class PatchBot(commands.Cog):
                 if patch["id"] == game.get("last_patch"):
                     continue
 
-                # fetch summary + banner
                 if game["type"] in ["valorant", "league"]:
+
                     summary = await self.extract_patch_summary(patch["url"])
                     image = await self.extract_patch_image(patch["url"])
+
                 else:
+
                     summary = patch.get("summary")
 
                 await self.bot.settings_col.update_one(
@@ -260,7 +287,13 @@ class PatchBot(commands.Cog):
                     }
                 )
 
-                # embed color
+                patch_number = self.extract_patch_number(patch["title"])
+
+                if patch_number:
+                    title = f"🆕 {game['name']} Patch {patch_number}"
+                else:
+                    title = patch["title"]
+
                 if game["type"] == "valorant":
                     color = discord.Color.from_rgb(255, 70, 85)
                 elif game["type"] == "league":
@@ -269,19 +302,20 @@ class PatchBot(commands.Cog):
                     color = discord.Color.green()
 
                 embed = discord.Embed(
-                    title=patch["title"],
-                    url=patch["url"],  # clickable title
+                    title=title,
+                    url=patch["url"],
                     color=color
                 )
 
-                # game author
                 if game["type"] == "valorant":
+
                     embed.set_author(
                         name="Valorant",
                         icon_url="https://seeklogo.com/images/V/valorant-logo-FAB2CA0E55-seeklogo.com.png"
                     )
 
                 elif game["type"] == "league":
+
                     embed.set_author(
                         name="League of Legends",
                         icon_url="https://seeklogo.com/images/L/league-of-legends-logo-4E20C0E6B6-seeklogo.com.png"
