@@ -437,69 +437,153 @@ class Settings(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-    @app_commands.command(name="setpatchchannel", description="Set patch alert channel")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def setpatchchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        # ==============================
+        # 🆕 PATCH TRACKING
+        # ==============================
     
-        await self.bot.settings_col.update_one(
-            {"guild_id": interaction.guild.id},
-            {"$set": {"patch_channel": channel.id}},
-            upsert=True
-        )
+        @app_commands.command(name="setpatchchannel", description="Set patch alert channel")
+        @app_commands.guilds(discord.Object(id=GUILD_ID))
+        async def setpatchchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
     
-        await interaction.response.send_message(
-            "✅ Patch channel set!",
-            ephemeral=True
-        )
-
-    @app_commands.command(name="addleaguepatch", description="Track League patches")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def addleaguepatch(self, interaction: discord.Interaction):
+            await self.bot.settings_col.update_one(
+                {"guild_id": interaction.guild.id},
+                {"$set": {"patch_channel": channel.id}},
+                upsert=True
+            )
     
-        await self.bot.settings_col.update_one(
-            {"guild_id": interaction.guild.id},
-            {
-                "$addToSet": {
-                    "patch_games": {
-                        "type": "league",
-                        "name": "League of Legends",
-                        "last_patch": None
+            await interaction.response.send_message(
+                "✅ Patch channel set!",
+                ephemeral=True
+            )
+    
+    
+        # ------------------------------
+        # ADD LEAGUE PATCH
+        # ------------------------------
+    
+        @app_commands.command(name="addleaguepatch", description="Track League patches")
+        @app_commands.guilds(discord.Object(id=GUILD_ID))
+        async def addleaguepatch(self, interaction: discord.Interaction):
+    
+            settings = await self.bot.settings_col.find_one(
+                {"guild_id": interaction.guild.id}
+            ) or {}
+    
+            games = settings.get("patch_games", [])
+    
+            if any(g["name"] == "League of Legends" for g in games):
+                await interaction.response.send_message(
+                    "⚠ League of Legends is already being tracked.",
+                    ephemeral=True
+                )
+                return
+    
+            await self.bot.settings_col.update_one(
+                {"guild_id": interaction.guild.id},
+                {
+                    "$push": {
+                        "patch_games": {
+                            "type": "league",
+                            "name": "League of Legends",
+                            "last_patch": None
+                        }
+                    }
+                },
+                upsert=True
+            )
+    
+            await interaction.response.send_message(
+                "🧠 League patch tracking enabled!",
+                ephemeral=True
+            )
+    
+    
+        # ------------------------------
+        # ADD VALORANT PATCH
+        # ------------------------------
+    
+        @app_commands.command(name="addvalorantpatch", description="Track Valorant patches")
+        @app_commands.guilds(discord.Object(id=GUILD_ID))
+        async def addvalorantpatch(self, interaction: discord.Interaction):
+    
+            settings = await self.bot.settings_col.find_one(
+                {"guild_id": interaction.guild.id}
+            ) or {}
+    
+            games = settings.get("patch_games", [])
+    
+            if any(g["name"] == "Valorant" for g in games):
+                await interaction.response.send_message(
+                    "⚠ Valorant is already being tracked.",
+                    ephemeral=True
+                )
+                return
+    
+            await self.bot.settings_col.update_one(
+                {"guild_id": interaction.guild.id},
+                {
+                    "$push": {
+                        "patch_games": {
+                            "type": "valorant",
+                            "name": "Valorant",
+                            "last_patch": None
+                        }
+                    }
+                },
+                upsert=True
+            )
+    
+            await interaction.response.send_message(
+                "🔫 Valorant patch tracking enabled!",
+                ephemeral=True
+            )
+    
+    
+        # ------------------------------
+        # REMOVE PATCH GAME
+        # ------------------------------
+    
+        @app_commands.command(name="removepatchgame", description="Stop tracking a patch game")
+        @app_commands.guilds(discord.Object(id=GUILD_ID))
+        async def removepatchgame(self, interaction: discord.Interaction, game: str):
+    
+            settings = await self.bot.settings_col.find_one(
+                {"guild_id": interaction.guild.id}
+            ) or {}
+    
+            games = settings.get("patch_games", [])
+    
+            match = None
+    
+            for g in games:
+                if g["name"].lower() == game.lower():
+                    match = g
+                    break
+    
+            if not match:
+                await interaction.response.send_message(
+                    "❌ That game is not currently being tracked.",
+                    ephemeral=True
+                )
+                return
+    
+            await self.bot.settings_col.update_one(
+                {"guild_id": interaction.guild.id},
+                {
+                    "$pull": {
+                        "patch_games": {"name": match["name"]}
                     }
                 }
-            },
-            upsert=True
-        )
+            )
     
-        await interaction.response.send_message(
-            "🧠 League patch tracking enabled!",
-            ephemeral=True
-        )
-
-    @app_commands.command(name="addvalorantpatch", description="Track Valorant patches")
-    @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def addvalorantpatch(self, interaction: discord.Interaction):
-    
-        await self.bot.settings_col.update_one(
-            {"guild_id": interaction.guild.id},
-            {
-                "$addToSet": {
-                    "patch_games": {
-                        "type": "valorant",
-                        "name": "Valorant",
-                        "last_patch": None
-                    }
-                }
-            },
-            upsert=True
-        )
-    
-        await interaction.response.send_message(
-            "🔫 Valorant patch tracking enabled!",
-            ephemeral=True
-        )
+            await interaction.response.send_message(
+                f"🗑 Removed patch tracking for **{match['name']}**.",
+                ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
+
 
 
 
