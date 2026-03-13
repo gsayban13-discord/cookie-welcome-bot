@@ -139,7 +139,6 @@ class PatchBot(commands.Cog):
 
         summary = []
 
-        # Try bullet lists first
         bullets = soup.find_all("li")
 
         for li in bullets:
@@ -154,7 +153,6 @@ class PatchBot(commands.Cog):
             if len(summary) == 4:
                 break
 
-        # fallback to paragraphs
         if not summary:
 
             paragraphs = soup.find_all("p")
@@ -211,20 +209,13 @@ class PatchBot(commands.Cog):
 
                 return src
 
-        for img in images:
-
-            src = img.get("src")
-
-            if src and src.startswith("http"):
-                return src
-
         return None
 
     # -----------------------------
     # MAIN LOOP
     # -----------------------------
 
-    @tasks.loop(seconds=25)
+    @tasks.loop(seconds=20)
     async def check_patches(self):
 
         await self.bot.wait_until_ready()
@@ -283,7 +274,7 @@ class PatchBot(commands.Cog):
                 patch_number = self.extract_patch_number(patch["title"])
 
                 if patch_number:
-                    title = f"🆕 Patch {patch_number}"
+                    title = f"Patch {patch_number}"
                 else:
                     title = patch["title"]
 
@@ -295,20 +286,18 @@ class PatchBot(commands.Cog):
                     color = discord.Color.green()
 
                 embed = discord.Embed(
-                    title=title,
+                    title=f"🆕 {title}",
                     url=patch["url"],
                     color=color
                 )
 
                 if game["type"] == "valorant":
-
                     embed.set_author(
                         name="Valorant",
                         icon_url="https://upload.wikimedia.org/wikipedia/commons/f/fc/Valorant_logo_-_pink_color_version.svg"
                     )
 
                 elif game["type"] == "league":
-
                     embed.set_author(
                         name="League of Legends",
                         icon_url="https://upload.wikimedia.org/wikipedia/commons/7/77/League_of_Legends_logo.svg"
