@@ -73,7 +73,7 @@ class TikTok(commands.Cog):
     
             except Exception as e:
                 print(f"[TikTok] Error for @{username}: {e}")
-                await asyncio.sleep(10))
+                await asyncio.sleep(10)
 
     # =============================
     # HANDLE LIVE START
