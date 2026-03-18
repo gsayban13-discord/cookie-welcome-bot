@@ -160,7 +160,7 @@ class TikTok(commands.Cog):
                 icon_url=profile_pic
             )
     
-        embed.set_footer(text="Powered by your bot ⚡")
+        embed.set_footer(text="Powered by Cookie Bot 🍪.")
     
         # -------------------------
         # 🚀 SEND ALERT
