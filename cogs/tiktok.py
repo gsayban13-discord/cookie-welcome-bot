@@ -120,9 +120,12 @@ class TikTok(commands.Cog):
     
         profile_pic = room.get("owner", {}).get("avatar_thumb")
     
-        # 🔥 HARD FALLBACK THUMBNAIL (ALWAYS WORKS)
-        if not thumbnail:
-            thumbnail = f"https://p16-sign-va.tiktokcdn.com/musically-maliva-obj/{}.jpeg"
+        # Thumbnail fallback (safe)
+        if not thumbnail or not isinstance(thumbnail, str):
+            thumbnail = None
+        
+        if thumbnail and thumbnail.startswith("http"):
+            embed.set_image(url=thumbnail)
     
         # -------------------------
         # 🎨 EMBED DESIGN
