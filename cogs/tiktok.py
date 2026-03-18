@@ -81,49 +81,94 @@ class TikTok(commands.Cog):
     async def handle_live_start(self, username, guild_id, channel_id, client):
 
         if self.live_status.get(username):
-            return  # already announced
-
+            return
+    
         self.live_status[username] = True
         self.stream_start[username] = time.time()
-
+    
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return
-
+    
         channel = guild.get_channel(channel_id)
         if not channel:
             return
-
+    
+        # 🔄 Force refresh TikTok data
+        try:
+            await client.fetch_room_info()
+        except Exception as e:
+            print("Room fetch failed:", e)
+    
         room = client.room_info or {}
-
-        title = room.get("title", "TikTok LIVE")
-        viewers = room.get("user_count", "Unknown")
-        thumbnail = room.get("cover")
-
-        embed = discord.Embed(
-            title="🔴 LIVE ON TIKTOK!",
-            description=f"**{username}** is now streaming!",
-            color=discord.Color.red()
+    
+        # -------------------------
+        # 🎯 DATA EXTRACTION
+        # -------------------------
+        title = room.get("title") or "🔴 TikTok LIVE"
+        viewers = (
+            room.get("user_count")
+            or room.get("viewer_count")
+            or room.get("live_viewer_count")
+            or "Unknown"
         )
-
-        embed.add_field(name="📺 Title", value=title, inline=False)
-        embed.add_field(name="👥 Viewers", value=viewers, inline=True)
+    
+        thumbnail = (
+            room.get("cover")
+            or room.get("stream_url")
+        )
+    
+        profile_pic = room.get("owner", {}).get("avatar_thumb")
+    
+        # 🔥 HARD FALLBACK THUMBNAIL (ALWAYS WORKS)
+        if not thumbnail:
+            thumbnail = f"https://p16-sign-va.tiktokcdn.com/musically-maliva-obj/{}.jpeg"
+    
+        # -------------------------
+        # 🎨 EMBED DESIGN
+        # -------------------------
+        embed = discord.Embed(
+            title="🔴 TikTok Live Now!",
+            description=f"**@{username}** is LIVE right now!\n\n"
+                        f"💬 *{title}*",
+            color=discord.Color.from_rgb(255, 0, 80)  # TikTok pink/red
+        )
+    
         embed.add_field(
-            name="🎥 Watch",
-            value=f"https://www.tiktok.com/@{username}/live",
+            name="👥 Viewers",
+            value=f"`{viewers}`",
+            inline=True
+        )
+    
+        embed.add_field(
+            name="🎥 Watch Stream",
+            value=f"[Click here to watch](https://www.tiktok.com/@{username}/live)",
             inline=False
         )
-
-        if thumbnail:
+    
+        # Thumbnail (main visual)
+        if thumbnail and thumbnail.startswith("http"):
             embed.set_image(url=thumbnail)
-
+    
+        # Profile picture (small icon)
+        if profile_pic:
+            embed.set_author(
+                name=f"@{username}",
+                icon_url=profile_pic
+            )
+    
+        embed.set_footer(text="Powered by your bot ⚡")
+    
+        # -------------------------
+        # 🚀 SEND ALERT
+        # -------------------------
         await channel.send(
-            content="@everyone",
+            content="🚨 **LIVE ALERT!** @everyone",
             embed=embed,
             allowed_mentions=discord.AllowedMentions(everyone=True)
         )
-
-        print(f"[TikTok] ALERT SENT for @{username}")
+    
+        print(f"[TikTok] BEAUTIFUL ALERT SENT for @{username}")
 
     # =============================
     # HANDLE LIVE END
