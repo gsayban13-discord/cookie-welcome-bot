@@ -57,31 +57,23 @@ class TikTok(commands.Cog):
     async def run_client(self, client, username, guild_id, channel_id):
 
         from TikTokLive.client.errors import UserOfflineError
-
+    
         while True:
             try:
                 print(f"[TikTok] Connecting to @{username}...")
                 await client.start()
-
+    
+                # ✅ If it connects successfully, just wait here
+                while True:
+                    await asyncio.sleep(60)
+    
             except UserOfflineError:
-                # User not live → check manually
-                print(f"[TikTok] @{username} is offline, checking again...")
-
-                try:
-                    await client.fetch_room_info()
-
-                    if client.room_info:
-                        print(f"[TikTok] @{username} is LIVE (manual detect)")
-                        await self.handle_live_start(username, guild_id, channel_id, client)
-
-                except Exception as e:
-                    print(f"[TikTok] Room check error: {e}")
-
+                print(f"[TikTok] @{username} is offline, retrying in 30s...")
                 await asyncio.sleep(30)
-
+    
             except Exception as e:
                 print(f"[TikTok] Error for @{username}: {e}")
-                await asyncio.sleep(10)
+                await asyncio.sleep(10))
 
     # =============================
     # HANDLE LIVE START
