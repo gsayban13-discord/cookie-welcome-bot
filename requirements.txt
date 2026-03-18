@@ -7,7 +7,7 @@ Pillow
 requests
 beautifulsoup4
 aiohttp
-TikTokLive==6.9.0
+TikTokLive==6.6.5
 
 # voice translation
 faster-whisper
