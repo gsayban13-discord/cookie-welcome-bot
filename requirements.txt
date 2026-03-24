@@ -10,7 +10,6 @@ aiohttp
 TikTokLive==6.6.5
 
 # voice translation
-faster-whisper
 deep-translator
 discord-ext-voice-recv
 numpy
