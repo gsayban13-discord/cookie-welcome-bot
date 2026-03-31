@@ -88,8 +88,16 @@ class Music(commands.Cog):
             await interaction.response.send_message(f"✅ Queued: **{title}**")
             return
 
-        await interaction.response.send_message(f"✅ Added to queue: **{title}**")
+        await interaction.response.defer(thinking=True)
+
+        # queue logic stays the same
+        
+        if voice_client.is_playing() or voice_client.is_paused():
+            await interaction.followup.send(f"✅ Queued: **{title}**")
+            return
+        
         await self._play_next(interaction.guild)
+        await interaction.followup.send(f"🎶 Now playing: **{title}**")
 
     @app_commands.command(name="skip", description="Skip the current track")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
