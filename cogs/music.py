@@ -14,17 +14,19 @@ class Music(commands.Cog):
         self.queues = defaultdict(deque)
 
     async def _is_enabled(self, interaction: discord.Interaction) -> bool:
-        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        settings = await self.bot.settings_col.find_one(
+            {"guild_id": interaction.guild.id}
+        ) or {}
 
         if not settings.get("music_enabled"):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Music is disabled. Use `/togglemusic` first.", ephemeral=True
             )
             return False
 
         allowed_channel = settings.get("music_channel")
         if allowed_channel and interaction.channel.id != allowed_channel:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Use music commands in <#{allowed_channel}>.", ephemeral=True
             )
             return False
@@ -46,7 +48,9 @@ class Music(commands.Cog):
         def after_playing(error):
             if error:
                 print(f"Music playback error: {error}")
-            fut = asyncio.run_coroutine_threadsafe(self._play_next(guild), self.bot.loop)
+            fut = asyncio.run_coroutine_threadsafe(
+                self._play_next(guild), self.bot.loop
+            )
             try:
                 fut.result()
             except Exception as exc:
@@ -62,12 +66,17 @@ class Music(commands.Cog):
 
     @app_commands.command(name="play", description="Play a direct audio stream URL")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def play(self, interaction: discord.Interaction, url: str, title: str = "Requested Track"):
+    async def play(
+        self, interaction: discord.Interaction, url: str, title: str = "Requested Track"
+    ):
+        # ✅ Defer immediately (fix timeout)
+        await interaction.response.defer(thinking=True)
+
         if not await self._is_enabled(interaction):
             return
 
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Join a voice channel first.", ephemeral=True
             )
             return
@@ -81,45 +90,51 @@ class Music(commands.Cog):
             voice_client = await voice_channel.connect()
 
         self.queues[interaction.guild.id].append(
-            {"url": url, "title": title, "text_channel": interaction.channel.id}
+            {
+                "url": url,
+                "title": title,
+                "text_channel": interaction.channel.id,
+            }
         )
 
-        if voice_client.is_playing() or voice_client.is_paused():
-            await interaction.response.send_message(f"✅ Queued: **{title}**")
-            return
-
-        await interaction.response.defer(thinking=True)
-
-        # queue logic stays the same
-        
+        # If already playing → queue only
         if voice_client.is_playing() or voice_client.is_paused():
             await interaction.followup.send(f"✅ Queued: **{title}**")
             return
-        
+
+        # Start playing
         await self._play_next(interaction.guild)
         await interaction.followup.send(f"🎶 Now playing: **{title}**")
 
     @app_commands.command(name="skip", description="Skip the current track")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def skip(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
         if not await self._is_enabled(interaction):
             return
 
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_connected():
-            await interaction.response.send_message("❌ Not connected to voice.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Not connected to voice.", ephemeral=True
+            )
             return
 
         if not voice_client.is_playing():
-            await interaction.response.send_message("❌ Nothing is currently playing.", ephemeral=True)
+            await interaction.followup.send(
+                "❌ Nothing is currently playing.", ephemeral=True
+            )
             return
 
         voice_client.stop()
-        await interaction.response.send_message("⏭️ Skipped.")
+        await interaction.followup.send("⏭️ Skipped.")
 
     @app_commands.command(name="stop", description="Stop music and clear queue")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def stop(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
         if not await self._is_enabled(interaction):
             return
 
@@ -127,28 +142,30 @@ class Music(commands.Cog):
         self.queues[interaction.guild.id].clear()
 
         if not voice_client or not voice_client.is_connected():
-            await interaction.response.send_message("✅ Queue cleared.")
+            await interaction.followup.send("✅ Queue cleared.")
             return
 
         if voice_client.is_playing() or voice_client.is_paused():
             voice_client.stop()
 
         await voice_client.disconnect()
-        await interaction.response.send_message("⏹️ Stopped and disconnected.")
+        await interaction.followup.send("⏹️ Stopped and disconnected.")
 
     @app_commands.command(name="queue", description="Show queued tracks")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def queue(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
         if not await self._is_enabled(interaction):
             return
 
         queue = self.queues[interaction.guild.id]
         if not queue:
-            await interaction.response.send_message("📭 Queue is empty.", ephemeral=True)
+            await interaction.followup.send("📭 Queue is empty.", ephemeral=True)
             return
 
         lines = [f"{i}. {item['title']}" for i, item in enumerate(queue, start=1)]
-        await interaction.response.send_message("\n".join(lines))
+        await interaction.followup.send("\n".join(lines))
 
 
 async def setup(bot):
