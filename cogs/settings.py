@@ -44,58 +44,21 @@ class Settings(commands.Cog):
         result = await self.bot.db.birthdays.delete_one(
             {"guild_id": interaction.guild.id, "user_id": user.id}
         )
-
         if result.deleted_count == 0:
-            await interaction.followup.send("❌ No birthday found for that user.")
-            return
-
-        birthday_cog = self.bot.get_cog("Birthday")
-        if birthday_cog:
-            await birthday_cog.update_birthday_list(interaction.guild)
-
+            return await interaction.followup.send("❌ No birthday found for that user.")
         await interaction.followup.send(f"🗑️ Birthday deleted for {user.mention}.")
 
-    @app_commands.command(name="testbirthday", description="Test birthday greeting for a user")
+    @app_commands.command(name="testbirthday", description="Test birthday greeting")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def testbirthday(self, interaction: discord.Interaction, user: discord.Member):
         await interaction.response.defer(ephemeral=True)
         settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
-
         channel_id = settings.get("birthday_channel")
-        role_id = settings.get("birthday_role")
-
         if not channel_id:
-            await interaction.followup.send("❌ Birthday channel not set.")
-            return
-
+            return await interaction.followup.send("❌ Birthday channel not set.")
+        
         channel = interaction.guild.get_channel(channel_id)
-        role = interaction.guild.get_role(role_id) if role_id else None
-
-        entry = await self.bot.db.birthdays.find_one(
-            {"guild_id": interaction.guild.id, "user_id": user.id}
-        )
-
-        if not entry:
-            await interaction.followup.send("❌ That user has no saved birthday.")
-            return
-
-        PH_TZ = timezone(timedelta(hours=8))
-        today = datetime.now(PH_TZ)
-
-        age_msg = ""
-        if entry.get("year"):
-            age = today.year - entry["year"]
-            age_msg = f"You are now **{age}** years old! 🎂"
-
-        await channel.send(f"🎉 Happy Birthday {user.mention}!\n{age_msg}")
-
-        if role:
-            await user.add_roles(role)
-            async def remove_later():
-                await asyncio.sleep(86400)
-                await user.remove_roles(role)
-            self.bot.loop.create_task(remove_later())
-
+        await channel.send(f"🎉 Happy Birthday {user.mention}! (Test Mode)")
         await interaction.followup.send("✅ Birthday test sent!")
 
     # ==============================
@@ -150,7 +113,7 @@ class Settings(commands.Cog):
             {"$set": {"logger_enabled": new_val}},
             upsert=True
         )
-        await interaction.followup.send("✅ Logger toggled!")
+        await interaction.followup.send(f"✅ Logger {'enabled' if new_val else 'disabled'}!")
 
     # ==============================
     # 🎤 VOICE VIP SETTINGS
@@ -165,9 +128,31 @@ class Settings(commands.Cog):
             {"$set": {"voice_vip_user": user.id}},
             upsert=True
         )
-        await interaction.followup.send("✅ VIP user set!")
+        await interaction.followup.send(f"✅ VIP set to {user.mention}!")
 
-    @app_commands.command(name="togglevoicevip", description="Toggle VIP voice")
+    @app_commands.command(name="setvoicemsg", description="Set VIP join message")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setvoicemsg(self, interaction: discord.Interaction, message: str):
+        await interaction.response.defer(ephemeral=True)
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"voice_vip_message": message}},
+            upsert=True
+        )
+        await interaction.followup.send("✅ Join message set!")
+
+    @app_commands.command(name="setvoicecammsg", description="Set VIP camera message")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setvoicecammsg(self, interaction: discord.Interaction, message: str):
+        await interaction.response.defer(ephemeral=True)
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"voice_vip_cam_message": message}},
+            upsert=True
+        )
+        await interaction.followup.send("✅ Camera message set!")
+
+    @app_commands.command(name="togglevoicevip", description="Toggle VIP voice alerts")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def togglevoicevip(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -178,13 +163,13 @@ class Settings(commands.Cog):
             {"$set": {"voice_vip_enabled": new_val}},
             upsert=True
         )
-        await interaction.followup.send("✅ Voice VIP toggled!")
+        await interaction.followup.send(f"✅ Voice VIP {'enabled' if new_val else 'disabled'}!")
 
     # ==============================
     # 🎶 MUSIC SETTINGS
     # ==============================
 
-    @app_commands.command(name="setmusicchannel", description="Set music command channel")
+    @app_commands.command(name="setmusicchannel", description="Set music channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setmusicchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         await interaction.response.defer(ephemeral=True)
@@ -195,7 +180,7 @@ class Settings(commands.Cog):
         )
         await interaction.followup.send("✅ Music channel set!")
 
-    @app_commands.command(name="togglemusic", description="Toggle music feature")
+    @app_commands.command(name="togglemusic", description="Toggle music")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def togglemusic(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -206,14 +191,41 @@ class Settings(commands.Cog):
             {"$set": {"music_enabled": new_val}},
             upsert=True
         )
-        status = "enabled" if new_val else "disabled"
-        await interaction.followup.send(f"✅ Music feature {status}!")
+        await interaction.followup.send(f"✅ Music {'enabled' if new_val else 'disabled'}!")
+
+    # ==============================
+    # 📊 POLL SETTINGS
+    # ==============================
+
+    @app_commands.command(name="setpollchannel", description="Set poll channel")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def setpollchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"poll_channel": channel.id}},
+            upsert=True
+        )
+        await interaction.followup.send("✅ Poll channel set!")
+
+    @app_commands.command(name="togglepoll", description="Toggle polls")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def togglepoll(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        new_val = 0 if settings.get("poll_enabled") else 1
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$set": {"poll_enabled": new_val}},
+            upsert=True
+        )
+        await interaction.followup.send(f"✅ Polls {'enabled' if new_val else 'disabled'}!")
 
     # ==============================
     # 🆕 PATCH TRACKING
     # ==============================
 
-    @app_commands.command(name="setpatchchannel", description="Set patch alert channel")
+    @app_commands.command(name="setpatchchannel", description="Set patch channel")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def setpatchchannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         await interaction.response.defer(ephemeral=True)
@@ -228,41 +240,36 @@ class Settings(commands.Cog):
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def addleaguepatch(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
-        games = settings.get("patch_games", [])
-
-        if any(g["name"] == "League of Legends" for g in games):
-            await interaction.followup.send("⚠ League of Legends is already being tracked.")
-            return
-
         await self.bot.settings_col.update_one(
             {"guild_id": interaction.guild.id},
             {"$push": {"patch_games": {"type": "league", "name": "League of Legends", "last_patch": None}}},
             upsert=True
         )
-        await interaction.followup.send("🧠 League patch tracking enabled!")
+        await interaction.followup.send("🧠 League tracking enabled!")
 
-    @app_commands.command(name="removepatchgame", description="Stop tracking a patch game")
+    @app_commands.command(name="addvalorantpatch", description="Track Valorant patches")
+    @app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def addvalorantpatch(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        await self.bot.settings_col.update_one(
+            {"guild_id": interaction.guild.id},
+            {"$push": {"patch_games": {"type": "valorant", "name": "Valorant", "last_patch": None}}},
+            upsert=True
+        )
+        await interaction.followup.send("🎯 Valorant tracking enabled!")
+
+    @app_commands.command(name="removepatchgame", description="Stop tracking a game")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def removepatchgame(self, interaction: discord.Interaction, game: str):
         await interaction.response.defer(ephemeral=True)
-        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
-        games = settings.get("patch_games", [])
-        
-        match = next((g for g in games if g["name"].lower() == game.lower()), None)
-
-        if not match:
-            await interaction.followup.send("❌ That game is not currently being tracked.")
-            return
-
         await self.bot.settings_col.update_one(
             {"guild_id": interaction.guild.id},
-            {"$pull": {"patch_games": {"name": match["name"]}}}
+            {"$pull": {"patch_games": {"name": {"$regex": f"^{game}$", "$options": "i"}}}}
         )
-        await interaction.followup.send(f"🗑 Removed patch tracking for **{match['name']}**.")
+        await interaction.followup.send(f"🗑 Removed tracking for {game}.")
 
     # ==============================
-    # 🧪 DEBUG / PREVIEW
+    # 🛠️ PREVIEW & INFO
     # ==============================
 
     @app_commands.command(name="showwelcomepreview", description="Preview welcome card")
@@ -270,22 +277,17 @@ class Settings(commands.Cog):
     async def showwelcomepreview(self, interaction: discord.Interaction, user: discord.Member):
         await interaction.response.defer()
         card = await create_welcome_card(user)
-        await interaction.followup.send(f"Preview for {user.mention}", file=discord.File(card, "welcome.png"))
+        await interaction.followup.send(file=discord.File(card, "welcome.png"))
 
-    @app_commands.command(name="showsettings", description="View bot settings")
+    @app_commands.command(name="showsettings", description="View all settings")
     @app_commands.guilds(discord.Object(id=GUILD_ID))
     async def showsettings(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        settings = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
-        embed = discord.Embed(title="⚙️ Bot Settings", color=discord.Color.purple())
-        
-        embed.add_field(name="👋 Welcome", value=f"Channel: <#{settings.get('welcome_channel', 'Not set')}>\nRole: <@&{settings.get('auto_role', 'Not set')}>", inline=False)
-        embed.add_field(name="📝 Logger", value=f"Enabled: {settings.get('logger_enabled', 0)}\nChannel: <#{settings.get('log_channel', 'Not set')}>", inline=False)
-        
-        patch_games = settings.get("patch_games", [])
-        games_list = "\n".join(g["name"] for g in patch_games) if patch_games else "None"
-        embed.add_field(name="🆕 Patch Tracking", value=f"Channel: <#{settings.get('patch_channel','Not set')}>\nGames: {games_list}", inline=False)
-        
+        s = await self.bot.settings_col.find_one({"guild_id": interaction.guild.id}) or {}
+        embed = discord.Embed(title="⚙️ Current Settings", color=discord.Color.blue())
+        embed.add_field(name="Welcome", value=f"Ch: <#{s.get('welcome_channel')}> | Role: <@&{s.get('auto_role')}>", inline=False)
+        embed.add_field(name="Logger", value=f"Enabled: {s.get('logger_enabled')} | Ch: <#{s.get('log_channel')}>", inline=False)
+        embed.add_field(name="Music/Polls", value=f"Music: {s.get('music_enabled')} | Polls: {s.get('poll_enabled')}", inline=False)
         await interaction.followup.send(embed=embed)
 
 async def setup(bot):
